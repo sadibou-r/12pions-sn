@@ -796,65 +796,67 @@ function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
   const curCell = boardEl.querySelector(`[data-r="${curR}"][data-c="${curC}"]`);
   const movingPiece = curCell ? curCell.querySelector('.piece') : null;
   if (!movingPiece) { then(); return; }
+  const glow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 18px rgba(253,239,66,0.8)';
+  movingPiece.style.zIndex = '5';
+
   if (!demoMove) {
-    movingPiece.style.transition = 'box-shadow 0.3s, transform 0.3s';
-    movingPiece.style.zIndex = '5';
-    movingPiece.style.boxShadow = '0 0 0 4px #fdef42, 0 0 24px 8px rgba(253,239,66,0.7)';
-    movingPiece.style.transform = 'scale(1.15)';
-    setTimeout(() => {
-      movingPiece.style.transition = '';
-      movingPiece.style.transform = '';
-      movingPiece.style.boxShadow = '';
-      movingPiece.style.zIndex = '';
-      then();
-    }, 1600);
+    const anim = movingPiece.animate([
+      { transform: 'scale(1)', boxShadow: 'none' },
+      { transform: 'scale(1.2)', boxShadow: glow, offset: 0.5 },
+      { transform: 'scale(1)', boxShadow: 'none' }
+    ], { duration: 1500, easing: 'ease-in-out' });
+    anim.onfinish = () => { movingPiece.style.zIndex = ''; then(); };
     return;
   }
+
   const originCell = boardEl.querySelector(`[data-r="${originR}"][data-c="${originC}"]`);
   const landCell = boardEl.querySelector(`[data-r="${demoMove.r}"][data-c="${demoMove.c}"]`);
   const capCell = boardEl.querySelector(`[data-r="${demoMove.captured.r}"][data-c="${demoMove.captured.c}"]`);
   const capPiece = capCell ? capCell.querySelector('.piece') : null;
-  if (!originCell || !landCell) { then(); return; }
+  if (!originCell || !landCell) { movingPiece.style.zIndex = ''; then(); return; }
+
   const curRect = curCell.getBoundingClientRect();
   const originRect = originCell.getBoundingClientRect();
   const landRect = landCell.getBoundingClientRect();
-  const dxOrigin = originRect.left - curRect.left;
-  const dyOrigin = originRect.top - curRect.top;
-  const dxLand = landRect.left - curRect.left;
-  const dyLand = landRect.top - curRect.top;
+  const dxO = originRect.left - curRect.left, dyO = originRect.top - curRect.top;
+  const dxL = landRect.left - curRect.left,   dyL = landRect.top - curRect.top;
   const needsBacktrack = (originR !== curR || originC !== curC);
 
-  movingPiece.style.zIndex = '5';
-  movingPiece.style.boxShadow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 16px rgba(253,239,66,0.7)';
-  movingPiece.style.transition = 'transform 0.5s ease-in-out, box-shadow 0.4s';
-  void movingPiece.offsetHeight;
+  // Vertical arc midpoint (negative = up). Larger jump for longer distance.
+  const dist = Math.hypot(dxL - dxO, dyL - dyO);
+  const arcHeight = Math.max(60, dist * 0.5);
+  const midX = (dxO + dxL) / 2;
+  const midY = (dyO + dyL) / 2 - arcHeight;
 
-  let t = 50;
+  const keyframes = [];
+  let duration;
   if (needsBacktrack) {
-    setTimeout(() => {
-      movingPiece.style.transform = `translate(${dxOrigin}px, ${dyOrigin}px)`;
-    }, t);
-    t += 700;
+    keyframes.push({ transform: 'translate(0,0)', boxShadow: 'none', offset: 0 });
+    keyframes.push({ transform: `translate(${dxO}px, ${dyO}px)`, boxShadow: glow, offset: 0.2 });
+    keyframes.push({ transform: `translate(${dxO}px, ${dyO}px) scale(1.05)`, boxShadow: glow, offset: 0.32 });
+    keyframes.push({ transform: `translate(${midX}px, ${midY}px) scale(1.2)`, boxShadow: glow, offset: 0.55 });
+    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px) scale(1)`, boxShadow: glow, offset: 0.75 });
+    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px) scale(1)`, boxShadow: glow, offset: 0.85 });
+    keyframes.push({ transform: 'translate(0,0)', boxShadow: 'none', offset: 1 });
+    duration = 2600;
+  } else {
+    const midXs = dxL / 2, midYs = dyL / 2 - arcHeight;
+    keyframes.push({ transform: 'translate(0,0)', boxShadow: 'none', offset: 0 });
+    keyframes.push({ transform: 'translate(0,0) scale(1.05)', boxShadow: glow, offset: 0.15 });
+    keyframes.push({ transform: `translate(${midXs}px, ${midYs}px) scale(1.2)`, boxShadow: glow, offset: 0.5 });
+    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px) scale(1)`, boxShadow: glow, offset: 0.75 });
+    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px) scale(1)`, boxShadow: glow, offset: 0.85 });
+    keyframes.push({ transform: 'translate(0,0)', boxShadow: 'none', offset: 1 });
+    duration = 2000;
   }
-  setTimeout(() => {
-    movingPiece.style.transition = 'transform 1.2s ease-in-out, box-shadow 0.4s';
-    void movingPiece.offsetHeight;
-    movingPiece.style.transform = `translate(${dxLand}px, ${dyLand}px)`;
-    if (capPiece) capPiece.classList.add('demo-jumped');
-  }, t);
-  t += 1300;
-  setTimeout(() => {
-    movingPiece.style.transition = 'transform 0.5s ease-in, box-shadow 0.3s';
-    movingPiece.style.transform = '';
-    movingPiece.style.boxShadow = '';
-  }, t);
-  t += 600;
-  setTimeout(() => {
-    movingPiece.style.transition = '';
+
+  if (capPiece) capPiece.classList.add('demo-jumped');
+  const anim = movingPiece.animate(keyframes, { duration, easing: 'ease-in-out' });
+  anim.onfinish = () => {
     movingPiece.style.zIndex = '';
     if (capPiece) capPiece.classList.remove('demo-jumped');
     then();
-  }, t);
+  };
 }
 
 function render() {
