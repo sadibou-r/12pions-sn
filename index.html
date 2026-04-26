@@ -822,31 +822,23 @@ function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
   const dxL = landRect.left - curRect.left,   dyL = landRect.top - curRect.top;
   const needsBacktrack = (originR !== curR || originC !== curC);
 
-  // Frog jump: up → across (at peak) → down. peakY is above the higher endpoint.
-  const lift = 70;
-  const peakY = Math.min(dyO, dyL) - lift;
-
   const keyframes = [];
   let duration;
   if (needsBacktrack) {
     keyframes.push({ transform: 'translate(0,0)', boxShadow: 'none', offset: 0 });
-    keyframes.push({ transform: `translate(${dxO}px, ${dyO}px)`, boxShadow: glow, offset: 0.18 });
-    keyframes.push({ transform: `translate(${dxO}px, ${dyO}px) scale(1.05)`, boxShadow: glow, offset: 0.28 });
-    keyframes.push({ transform: `translate(${dxO}px, ${peakY}px) scale(1.18)`, boxShadow: glow, offset: 0.45 });
-    keyframes.push({ transform: `translate(${dxL}px, ${peakY}px) scale(1.18)`, boxShadow: glow, offset: 0.6 });
-    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px) scale(1)`, boxShadow: glow, offset: 0.78 });
-    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px) scale(1)`, boxShadow: glow, offset: 0.88 });
+    keyframes.push({ transform: `translate(${dxO}px, ${dyO}px)`, boxShadow: glow, offset: 0.2 });
+    keyframes.push({ transform: `translate(${dxO}px, ${dyO}px)`, boxShadow: glow, offset: 0.32 });
+    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px)`, boxShadow: glow, offset: 0.7 });
+    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px)`, boxShadow: glow, offset: 0.85 });
     keyframes.push({ transform: 'translate(0,0)', boxShadow: 'none', offset: 1 });
-    duration = 2800;
+    duration = 2400;
   } else {
     keyframes.push({ transform: 'translate(0,0)', boxShadow: 'none', offset: 0 });
-    keyframes.push({ transform: 'translate(0,0) scale(1.05)', boxShadow: glow, offset: 0.1 });
-    keyframes.push({ transform: `translate(0px, ${peakY}px) scale(1.18)`, boxShadow: glow, offset: 0.3 });
-    keyframes.push({ transform: `translate(${dxL}px, ${peakY}px) scale(1.18)`, boxShadow: glow, offset: 0.5 });
-    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px) scale(1)`, boxShadow: glow, offset: 0.7 });
-    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px) scale(1)`, boxShadow: glow, offset: 0.85 });
+    keyframes.push({ transform: 'translate(0,0)', boxShadow: glow, offset: 0.12 });
+    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px)`, boxShadow: glow, offset: 0.6 });
+    keyframes.push({ transform: `translate(${dxL}px, ${dyL}px)`, boxShadow: glow, offset: 0.82 });
     keyframes.push({ transform: 'translate(0,0)', boxShadow: 'none', offset: 1 });
-    duration = 2200;
+    duration = 2000;
   }
 
   if (capPiece) capPiece.classList.add('demo-jumped');
