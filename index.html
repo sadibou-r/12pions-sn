@@ -312,7 +312,9 @@
     font-style: normal;
     font-weight: 600;
   }
-  .lobby-card .row { display: flex; gap: 8px; }
+  .lobby-card .row { display: flex; gap: 8px; width: 100%; }
+  .lobby-card .row input { min-width: 0; }
+  .lobby-card .row button { flex-shrink: 0; padding: 10px 18px; }
   .lobby-card input {
     flex: 1;
     padding: 10px;
