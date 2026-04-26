@@ -740,7 +740,7 @@ function renderTurnTimer() {
   const el = document.getElementById('turnTimer');
   if (!el || !turnDeadline) return;
   const left = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
-  el.textContent = `⏱ ${left}s`;
+  el.textContent = `${left}s`;
   el.classList.toggle('warn', left <= 5);
 }
 function startTurnTimer() {
@@ -787,11 +787,27 @@ function passTurn() {
 
 function demonstrateMove(fr, fc, demoMove, then) {
   const fromCell = boardEl.querySelector(`[data-r="${fr}"][data-c="${fc}"]`);
+  const movingPiece = fromCell ? fromCell.querySelector('.piece') : null;
+  if (!movingPiece) { then(); return; }
+  if (!demoMove) {
+    // Pas de capture dispo à montrer : on pulse juste le pion fautif.
+    movingPiece.style.transition = 'box-shadow 0.3s, transform 0.3s';
+    movingPiece.style.zIndex = '5';
+    movingPiece.style.boxShadow = '0 0 0 4px #fdef42, 0 0 24px 8px rgba(253,239,66,0.7)';
+    movingPiece.style.transform = 'scale(1.15)';
+    setTimeout(() => {
+      movingPiece.style.transition = '';
+      movingPiece.style.transform = '';
+      movingPiece.style.boxShadow = '';
+      movingPiece.style.zIndex = '';
+      then();
+    }, 1800);
+    return;
+  }
   const toCell = boardEl.querySelector(`[data-r="${demoMove.r}"][data-c="${demoMove.c}"]`);
   const capCell = boardEl.querySelector(`[data-r="${demoMove.captured.r}"][data-c="${demoMove.captured.c}"]`);
-  const movingPiece = fromCell ? fromCell.querySelector('.piece') : null;
   const capPiece = capCell ? capCell.querySelector('.piece') : null;
-  if (!movingPiece || !fromCell || !toCell) { then(); return; }
+  if (!toCell) { then(); return; }
   const fromRect = fromCell.getBoundingClientRect();
   const toRect = toCell.getBoundingClientRect();
   const dx = toRect.left - fromRect.left;
@@ -800,8 +816,6 @@ function demonstrateMove(fr, fc, demoMove, then) {
   movingPiece.style.zIndex = '5';
   movingPiece.style.boxShadow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 16px rgba(253,239,66,0.7)';
   void movingPiece.offsetHeight;
-  const banner = document.getElementById('oopsBanner');
-  if (banner) banner.classList.add('show');
   if (capPiece) capPiece.classList.add('demo-jumped');
   setTimeout(() => {
     movingPiece.style.transform = `translate(${dx}px, ${dy}px)`;
@@ -819,7 +833,6 @@ function demonstrateMove(fr, fc, demoMove, then) {
       movingPiece.style.zIndex = '';
     }
     if (capPiece) capPiece.classList.remove('demo-jumped');
-    if (banner) banner.classList.remove('show');
     then();
   }, 2300);
 }
@@ -1075,7 +1088,11 @@ function handleSurplaceClick(r, c) {
   const fautif = piece.p === 'X' ? 'Vert' : 'Rouge';
   const demoMoves = captureMoves(r, c);
   const demo = demoMoves[0];
+  const banner = document.getElementById('oopsBanner');
+  if (banner) banner.classList.add('show');
+  setStatus(`Coup raté de ${fautif} ${demo ? '— voilà ce qu\'il devait jouer' : ''}`);
   const finish = () => {
+    if (banner) banner.classList.remove('show');
     animateCapture(r, c, killer, () => {
       board[r][c] = null;
       surplaceTargets = new Set();
@@ -1093,12 +1110,7 @@ function handleSurplaceClick(r, c) {
       render();
     });
   };
-  if (demo) {
-    setStatus(`Coup raté de ${fautif} : voilà ce qu'il devait jouer`);
-    demonstrateMove(r, c, demo, finish);
-  } else {
-    finish();
-  }
+  demonstrateMove(r, c, demo, finish);
 }
 
 function doDraw() {
