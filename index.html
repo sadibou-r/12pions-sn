@@ -1058,9 +1058,7 @@ function doCapture(fr, fc, move) {
     captureCountThisTurn++;
     pendingChain = null;
     if (captureCountThisTurn >= 2) {
-      const chainN = captureCountThisTurn - 1;
-      const label = chainN === 1 ? 'COUDOU !' : `COUDOU ×${chainN} !`;
-      showCoudouBanner(label);
+      showCoudouBanner(`COUDOU ×${captureCountThisTurn} !`);
     }
     setStatus(`${player === 'X' ? 'Vert' : 'Rouge'} : tour en cours...`);
     render();
