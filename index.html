@@ -64,11 +64,32 @@
   .flag-stripe .r { background: #e31b23; }
   #status {
     font-size: 1.05em;
-    margin: 8px 0 18px;
+    margin: 8px 0 4px;
     min-height: 1.5em;
     text-align: center;
     color: #cfd6e0;
     letter-spacing: 0.5px;
+  }
+  #turnTimer {
+    font-size: 0.95em;
+    margin: 0 0 14px;
+    min-height: 1.2em;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: #fdef42;
+    text-align: center;
+  }
+  #turnTimer.warn { color: #ff5c5c; animation: timer-pulse 0.8s ease-in-out infinite; }
+  @keyframes timer-pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.1); }
+  }
+  .piece.demo-jumped { animation: demo-jumped 0.7s ease-in-out; }
+  @keyframes demo-jumped {
+    0%   { opacity: 1; }
+    40%  { opacity: 0.25; filter: grayscale(1); }
+    70%  { opacity: 0.25; filter: grayscale(1); }
+    100% { opacity: 1; filter: none; }
   }
   #arena {
     display: flex;
@@ -470,6 +491,7 @@
   <div class="subtitle">Senegal</div>
   <div class="flag-stripe"><div class="g"></div><div class="y"></div><div class="r"></div></div>
   <div id="status">Au tour de Vert<span id="myBadge"></span></div>
+  <div id="turnTimer"></div>
   <div id="arena">
     <div class="panel panel-X" id="panelX">
       <div class="panel-header">
@@ -654,6 +676,94 @@ const COUDOU_DELAY_MS = 3000;
 let coudouTimer = null;
 function clearCoudouTimer() { if (coudouTimer) { clearTimeout(coudouTimer); coudouTimer = null; } }
 
+const TURN_DURATION_MS = 30000;
+let turnTimer = null;
+let turnDeadline = null;
+function clearTurnTimer() {
+  if (turnTimer) { clearInterval(turnTimer); turnTimer = null; }
+  turnDeadline = null;
+  const el = document.getElementById('turnTimer');
+  if (el) { el.textContent = ''; el.classList.remove('warn'); }
+}
+function renderTurnTimer() {
+  const el = document.getElementById('turnTimer');
+  if (!el || !turnDeadline) return;
+  const left = Math.max(0, Math.ceil((turnDeadline - Date.now()) / 1000));
+  el.textContent = `⏱ ${left}s`;
+  el.classList.toggle('warn', left <= 5);
+}
+function startTurnTimer() {
+  clearTurnTimer();
+  if (gameOver) return;
+  turnDeadline = Date.now() + TURN_DURATION_MS;
+  renderTurnTimer();
+  turnTimer = setInterval(() => {
+    if (gameOver) { clearTurnTimer(); return; }
+    renderTurnTimer();
+    if (Date.now() >= turnDeadline) {
+      clearTurnTimer();
+      if (!online || (myColor === turn && !applyingRemote)) {
+        broadcast({type:'pass'});
+        passTurn();
+      }
+    }
+  }, 250);
+}
+function passTurn() {
+  if (gameOver) return;
+  clearTurnTimer();
+  clearCoudouTimer();
+  const passer = turn === 'X' ? 'Vert' : 'Rouge';
+  surplaceTargets = new Set();
+  mustContinueFrom = null;
+  selected = null;
+  surplaceMode = false;
+  document.getElementById('surplaceBtn').textContent = 'Surplace';
+  bindSurplace();
+  turn = opponent(turn);
+  if (allMovesForPlayer(turn).length === 0) {
+    gameOver = true;
+    setStatus(`${turn === 'X' ? 'Vert' : 'Rouge'} bloqué — victoire de ${opponent(turn) === 'X' ? 'Vert' : 'Rouge'} !`);
+    render();
+    return;
+  }
+  snapshotPreMove();
+  lastMoveTo = null;
+  setStatus(`${passer} : temps écoulé. Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
+  render();
+  startTurnTimer();
+}
+
+function demonstrateMove(fr, fc, demoMove, then) {
+  const fromCell = boardEl.querySelector(`[data-r="${fr}"][data-c="${fc}"]`);
+  const toCell = boardEl.querySelector(`[data-r="${demoMove.r}"][data-c="${demoMove.c}"]`);
+  const capCell = boardEl.querySelector(`[data-r="${demoMove.captured.r}"][data-c="${demoMove.captured.c}"]`);
+  const movingPiece = fromCell ? fromCell.querySelector('.piece') : null;
+  const capPiece = capCell ? capCell.querySelector('.piece') : null;
+  if (!movingPiece || !fromCell || !toCell) { then(); return; }
+  const fromRect = fromCell.getBoundingClientRect();
+  const toRect = toCell.getBoundingClientRect();
+  const dx = toRect.left - fromRect.left;
+  const dy = toRect.top - fromRect.top;
+  movingPiece.style.transition = 'transform 0.6s ease-in-out, box-shadow 0.3s';
+  movingPiece.style.zIndex = '5';
+  movingPiece.style.boxShadow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 12px rgba(253,239,66,0.6)';
+  requestAnimationFrame(() => {
+    movingPiece.style.transform = `translate(${dx}px, ${dy}px)`;
+  });
+  if (capPiece) capPiece.classList.add('demo-jumped');
+  setTimeout(() => {
+    if (movingPiece) {
+      movingPiece.style.transition = '';
+      movingPiece.style.transform = '';
+      movingPiece.style.boxShadow = '';
+      movingPiece.style.zIndex = '';
+    }
+    if (capPiece) capPiece.classList.remove('demo-jumped');
+    then();
+  }, 850);
+}
+
 function render() {
   boardEl.innerHTML = '';
   for (let r = 0; r < SIZE; r++) {
@@ -751,6 +861,7 @@ function onCellClick(r, c) {
 }
 
 function doSimpleMove(fr, fc, to) {
+  clearTurnTimer();
   if (turnStartFrom === null) turnStartFrom = {r:fr, c:fc};
   board[to.r][to.c] = board[fr][fc];
   board[fr][fc] = null;
@@ -762,6 +873,7 @@ function doSimpleMove(fr, fc, to) {
 }
 
 function doCapture(fr, fc, move) {
+  clearTurnTimer();
   if (turnStartFrom === null) turnStartFrom = {r:fr, c:fc};
   turnDidCapture = true;
   clearCoudouTimer();
@@ -859,6 +971,7 @@ function endTurn() {
   lastMoveTo = null;
   setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
   render();
+  startTurnTimer();
 }
 
 function enterSurplace() {
@@ -895,31 +1008,44 @@ function handleSurplaceClick(r, c) {
   if (!piece || piece.p === turn) { setStatus(`Choisis un pion adverse`); return; }
   if (!surplaceTargets.has(key(r,c))) { setStatus(`Surplace refusé`); return; }
   const killer = turn;
-  animateCapture(r, c, killer, () => {
-    board[r][c] = null;
-    // One surplace per turn — clear all targets and exit surplace mode.
-    surplaceTargets = new Set();
-    surplaceMode = false;
-    document.getElementById('surplaceBtn').textContent = 'Surplace';
-    bindSurplace();
-    autoPromoteIfLast();
-    if (countPieces(opponent(turn)) === 0) {
-      gameOver = true;
-      setStatus(`Victoire de ${turn === 'X' ? 'Vert' : 'Rouge'} !`);
-    } else {
-      setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
-    }
-    render();
-  });
+  const fautif = piece.p === 'X' ? 'Vert' : 'Rouge';
+  const demoMoves = captureMoves(r, c);
+  const demo = demoMoves[0];
+  const finish = () => {
+    animateCapture(r, c, killer, () => {
+      board[r][c] = null;
+      surplaceTargets = new Set();
+      surplaceMode = false;
+      document.getElementById('surplaceBtn').textContent = 'Surplace';
+      bindSurplace();
+      autoPromoteIfLast();
+      if (countPieces(opponent(turn)) === 0) {
+        gameOver = true;
+        clearTurnTimer();
+        setStatus(`Victoire de ${turn === 'X' ? 'Vert' : 'Rouge'} !`);
+      } else {
+        setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
+      }
+      render();
+    });
+  };
+  if (demo) {
+    setStatus(`Coup raté de ${fautif} : voilà ce qu'il devait jouer`);
+    demonstrateMove(r, c, demo, finish);
+  } else {
+    finish();
+  }
 }
 
 function doDraw() {
   gameOver = true;
+  clearTurnTimer();
   setStatus('Match nul');
   render();
 }
 function doDrawForfeit(loser) {
   gameOver = true;
+  clearTurnTimer();
   const loserName = loser === 'X' ? 'Vert' : 'Rouge';
   const winnerName = loser === 'X' ? 'Rouge' : 'Vert';
   setStatus(`${loserName} a abusé du match nul (${MAX_DRAW_REQUESTS} demandes) — victoire de ${winnerName} !`);
@@ -929,6 +1055,7 @@ function doReset() {
   initState();
   setStatus('Au tour de Vert');
   render();
+  startTurnTimer();
 }
 function ask({title, message, okText='OK', cancelText='Annuler', danger=false}) {
   return new Promise(resolve => {
@@ -991,6 +1118,7 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 initState();
 bindSurplace();
 render();
+startTurnTimer();
 
 // --- Lobby wiring ---
 const lobbyEl = document.getElementById('lobby');
@@ -1004,6 +1132,7 @@ async function applyRemoteAction(a) {
     else if (a.type === 'surplaceEnter') enterSurplace();
     else if (a.type === 'surplaceCancel') cancelSurplace();
     else if (a.type === 'autoEnd') { clearCoudouTimer(); if (mustContinueFrom) endTurn(); }
+    else if (a.type === 'pass') passTurn();
     else if (a.type === 'draw') doDraw();
     else if (a.type === 'drawRequest') {
       if (a.from) drawRequests[a.from] = (drawRequests[a.from] || 0) + 1;
