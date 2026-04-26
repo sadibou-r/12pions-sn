@@ -84,12 +84,59 @@
     0%, 100% { transform: scale(1); }
     50%      { transform: scale(1.1); }
   }
-  .piece.demo-jumped { animation: demo-jumped 0.7s ease-in-out; }
+  .piece.demo-jumped { animation: demo-jumped 1.6s ease-in-out; }
   @keyframes demo-jumped {
     0%   { opacity: 1; }
-    40%  { opacity: 0.25; filter: grayscale(1); }
-    70%  { opacity: 0.25; filter: grayscale(1); }
+    30%  { opacity: 0.2; filter: grayscale(1); }
+    80%  { opacity: 0.2; filter: grayscale(1); }
     100% { opacity: 1; filter: none; }
+  }
+  #oopsBanner {
+    position: fixed;
+    top: 30%;
+    left: 50%;
+    transform: translate(-50%, -50%) scale(0.6);
+    z-index: 300;
+    pointer-events: none;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-weight: 900;
+    font-size: 4em;
+    letter-spacing: 6px;
+    color: #fdef42;
+    text-shadow:
+      0 0 12px rgba(253,239,66,0.9),
+      0 0 32px rgba(227,27,35,0.7),
+      0 4px 12px rgba(0,0,0,0.8);
+    background: rgba(45,24,16,0.85);
+    border: 3px solid #e31b23;
+    border-radius: 16px;
+    padding: 18px 36px;
+    opacity: 0;
+    transition: opacity 0.25s, transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
+    text-align: center;
+    white-space: nowrap;
+  }
+  #oopsBanner.show {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(-3deg);
+    animation: oops-shake 0.5s ease-in-out 0.25s;
+  }
+  #oopsBanner small {
+    display: block;
+    font-size: 0.4em;
+    letter-spacing: 3px;
+    color: #f4ead5;
+    font-weight: 700;
+    margin-top: 6px;
+    text-shadow: 0 2px 4px rgba(0,0,0,0.8);
+  }
+  @keyframes oops-shake {
+    0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(-3deg); }
+    25%      { transform: translate(-50%, -50%) scale(1.05) rotate(3deg); }
+    75%      { transform: translate(-50%, -50%) scale(1.05) rotate(-5deg); }
+  }
+  @media (max-width: 560px) {
+    #oopsBanner { font-size: 2.4em; letter-spacing: 4px; padding: 14px 24px; }
   }
   #arena {
     display: flex;
@@ -458,6 +505,8 @@
 </style>
 </head>
 <body>
+  <div id="oopsBanner">OOPS !<small>SURPLACE</small></div>
+
   <div id="modal" class="hidden">
     <div class="modal-card">
       <h3 id="modalTitle"></h3>
@@ -745,25 +794,32 @@ function demonstrateMove(fr, fc, demoMove, then) {
   const toRect = toCell.getBoundingClientRect();
   const dx = toRect.left - fromRect.left;
   const dy = toRect.top - fromRect.top;
-  movingPiece.style.transition = 'transform 0.6s ease-in-out, box-shadow 0.3s';
+  movingPiece.style.transition = 'transform 1.4s ease-in-out, box-shadow 0.4s';
   movingPiece.style.zIndex = '5';
-  movingPiece.style.boxShadow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 12px rgba(253,239,66,0.6)';
-  // Force reflow so the transition picks up the next transform change
+  movingPiece.style.boxShadow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 16px rgba(253,239,66,0.7)';
   void movingPiece.offsetHeight;
+  const banner = document.getElementById('oopsBanner');
+  if (banner) banner.classList.add('show');
   if (capPiece) capPiece.classList.add('demo-jumped');
   setTimeout(() => {
     movingPiece.style.transform = `translate(${dx}px, ${dy}px)`;
-  }, 30);
+  }, 50);
+  setTimeout(() => {
+    if (movingPiece) {
+      movingPiece.style.transition = 'transform 0.5s ease-in, box-shadow 0.3s';
+      movingPiece.style.transform = '';
+      movingPiece.style.boxShadow = '';
+    }
+  }, 1700);
   setTimeout(() => {
     if (movingPiece) {
       movingPiece.style.transition = '';
-      movingPiece.style.transform = '';
-      movingPiece.style.boxShadow = '';
       movingPiece.style.zIndex = '';
     }
     if (capPiece) capPiece.classList.remove('demo-jumped');
+    if (banner) banner.classList.remove('show');
     then();
-  }, 950);
+  }, 2300);
 }
 
 function render() {
