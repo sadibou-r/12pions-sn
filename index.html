@@ -748,10 +748,12 @@ function demonstrateMove(fr, fc, demoMove, then) {
   movingPiece.style.transition = 'transform 0.6s ease-in-out, box-shadow 0.3s';
   movingPiece.style.zIndex = '5';
   movingPiece.style.boxShadow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 12px rgba(253,239,66,0.6)';
-  requestAnimationFrame(() => {
-    movingPiece.style.transform = `translate(${dx}px, ${dy}px)`;
-  });
+  // Force reflow so the transition picks up the next transform change
+  void movingPiece.offsetHeight;
   if (capPiece) capPiece.classList.add('demo-jumped');
+  setTimeout(() => {
+    movingPiece.style.transform = `translate(${dx}px, ${dy}px)`;
+  }, 30);
   setTimeout(() => {
     if (movingPiece) {
       movingPiece.style.transition = '';
@@ -761,7 +763,7 @@ function demonstrateMove(fr, fc, demoMove, then) {
     }
     if (capPiece) capPiece.classList.remove('demo-jumped');
     then();
-  }, 850);
+  }, 950);
 }
 
 function render() {
@@ -1118,7 +1120,6 @@ document.getElementById('resetBtn').addEventListener('click', () => {
 initState();
 bindSurplace();
 render();
-startTurnTimer();
 
 // --- Lobby wiring ---
 const lobbyEl = document.getElementById('lobby');
@@ -1174,11 +1175,13 @@ function connectSocket() {
       online = true;
       lobbyEl.style.display = 'none';
       myBadge.innerHTML = ` <span class="badge-color ${myColor}">Tu es ${myColor === 'X' ? 'Vert' : 'Rouge'}</span>`;
+      startTurnTimer();
     } else if (msg.type === 'joined') {
       myColor = msg.color;
       online = true;
       lobbyEl.style.display = 'none';
       myBadge.innerHTML = ` <span class="badge-color ${myColor}">Tu es ${myColor === 'X' ? 'Vert' : 'Rouge'}</span>`;
+      startTurnTimer();
     } else if (msg.type === 'action') {
       applyRemoteAction(msg.action);
     } else if (msg.type === 'opponentLeft') {
@@ -1194,6 +1197,7 @@ function connectSocket() {
 document.getElementById('btnLocal').onclick = () => {
   online = false;
   lobbyEl.style.display = 'none';
+  startTurnTimer();
 };
 document.getElementById('btnCreate').onclick = () => {
   connectSocket();
