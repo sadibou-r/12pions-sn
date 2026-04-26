@@ -435,6 +435,8 @@ let turnDidCapture = false;
 let lastMoveTo = null;
 // Trophies: pieces each player has captured. trophiesX = O pieces taken by X.
 let trophiesX = 0, trophiesO = 0;
+let drawRequests = { X: 0, O: 0 };
+const MAX_DRAW_REQUESTS = 3;
 // Animation queue: cells that should play "appearing" animation on next render.
 let pendingAppear = new Set();
 let pendingPromote = new Set();
@@ -474,6 +476,7 @@ function initState() {
   turnDidCapture = false;
   lastMoveTo = null;
   trophiesX = 0; trophiesO = 0;
+  drawRequests = { X: 0, O: 0 };
   pendingAppear.clear();
   pendingPromote.clear();
   document.getElementById('trophyX').innerHTML = '';
@@ -846,6 +849,13 @@ function doDraw() {
   setStatus('Match nul');
   render();
 }
+function doDrawForfeit(loser) {
+  gameOver = true;
+  const loserName = loser === 'X' ? 'Vert' : 'Rouge';
+  const winnerName = loser === 'X' ? 'Rouge' : 'Vert';
+  setStatus(`${loserName} a abusé du match nul (${MAX_DRAW_REQUESTS} demandes) — victoire de ${winnerName} !`);
+  render();
+}
 function doReset() {
   initState();
   setStatus('Au tour de Vert');
@@ -854,9 +864,20 @@ function doReset() {
 document.getElementById('drawBtn').addEventListener('click', () => {
   if (gameOver) return;
   if (online) {
-    if (!confirm('Proposer le match nul à l\'adversaire ?')) return;
-    send({type:'action', action:{type:'drawRequest'}});
-    setStatus('Proposition de match nul envoyée…');
+    const next = (drawRequests[myColor] || 0) + 1;
+    const remaining = MAX_DRAW_REQUESTS - next;
+    const warn = remaining <= 0
+      ? `Attention : ce sera ta ${MAX_DRAW_REQUESTS}e demande — tu perdras automatiquement la partie. Confirmer ?`
+      : `Proposer le match nul à l'adversaire ? (${next}/${MAX_DRAW_REQUESTS} — ${remaining} restante${remaining>1?'s':''} avant forfait)`;
+    if (!confirm(warn)) return;
+    drawRequests[myColor] = next;
+    if (next >= MAX_DRAW_REQUESTS) {
+      send({type:'action', action:{type:'drawForfeit', loser: myColor}});
+      doDrawForfeit(myColor);
+      return;
+    }
+    send({type:'action', action:{type:'drawRequest', from: myColor}});
+    setStatus(`Proposition de match nul envoyée… (${next}/${MAX_DRAW_REQUESTS})`);
   } else {
     if (confirm('Match nul d\'un commun accord ?')) doDraw();
   }
@@ -884,7 +905,11 @@ function applyRemoteAction(a) {
     else if (a.type === 'autoEnd') { clearCoudouTimer(); if (mustContinueFrom) endTurn(); }
     else if (a.type === 'draw') doDraw();
     else if (a.type === 'drawRequest') {
-      const accept = confirm('L\'adversaire propose le match nul. Accepter ?');
+      if (a.from) drawRequests[a.from] = (drawRequests[a.from] || 0) + 1;
+      const count = a.from ? drawRequests[a.from] : 0;
+      const left = MAX_DRAW_REQUESTS - count;
+      const suffix = a.from ? ` (${count}/${MAX_DRAW_REQUESTS} — ${left} avant forfait)` : '';
+      const accept = confirm(`L'adversaire propose le match nul.${suffix}\nAccepter ?`);
       if (accept) {
         send({type:'action', action:{type:'drawAccept'}});
         doDraw();
@@ -895,6 +920,7 @@ function applyRemoteAction(a) {
     }
     else if (a.type === 'drawAccept') doDraw();
     else if (a.type === 'drawRefuse') setStatus('L\'adversaire a refusé le match nul');
+    else if (a.type === 'drawForfeit') doDrawForfeit(a.loser);
     else if (a.type === 'reset') doReset();
   } finally {
     applyingRemote = false;
