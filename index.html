@@ -721,23 +721,30 @@ function doCapture(fr, fc, move) {
 
 function computeSurplaceTargets(playerWhoJustMoved, movedTo) {
   const targets = new Set();
-  for (const k of preMoveCaptureSet) {
-    const [r,c] = k.split(',').map(Number);
-    const p = board[r][c];
-    if (!p || p.p !== playerWhoJustMoved) continue;
-    if (turnStartFrom && r === turnStartFrom.r && c === turnStartFrom.c) continue;
-    targets.add(k);
-  }
-  if (turnStartFrom && movedTo) {
-    const startKey = key(turnStartFrom.r, turnStartFrom.c);
-    const hadCaptureAtStart = preMoveCaptureSet.has(startKey);
-    if (!turnDidCapture && hadCaptureAtStart) {
-      targets.add(key(movedTo.r, movedTo.c));
-    } else if (turnDidCapture) {
+  if (turnDidCapture) {
+    // Capture(s) effectuée(s) : surplace seulement si un coudou a été abandonné
+    // (le pion qui vient de capturer pouvait encore enchaîner).
+    if (movedTo) {
       const piece = board[movedTo.r][movedTo.c];
       if (piece && captureMoves(movedTo.r, movedTo.c).length > 0) {
         targets.add(key(movedTo.r, movedTo.c));
       }
+    }
+    return targets;
+  }
+  // Aucune capture ce tour-ci : tous les pions qui avaient une capture dispo
+  // en début de tour sont surplaçables (dames incluses).
+  for (const k of preMoveCaptureSet) {
+    const [r,c] = k.split(',').map(Number);
+    if (turnStartFrom && r === turnStartFrom.r && c === turnStartFrom.c) continue;
+    const p = board[r][c];
+    if (!p || p.p !== playerWhoJustMoved) continue;
+    targets.add(k);
+  }
+  if (turnStartFrom && movedTo) {
+    const startKey = key(turnStartFrom.r, turnStartFrom.c);
+    if (preMoveCaptureSet.has(startKey)) {
+      targets.add(key(movedTo.r, movedTo.c));
     }
   }
   return targets;
