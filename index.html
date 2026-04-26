@@ -355,6 +355,64 @@
   .badge-color.X { background: #00853f; }
   .badge-color.O { background: #e31b23; }
 
+  #modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,12,20,0.78);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    backdrop-filter: blur(4px);
+    animation: modal-fade 0.2s ease-out;
+  }
+  #modal.hidden { display: none; }
+  @keyframes modal-fade { from { opacity: 0; } to { opacity: 1; } }
+  .modal-card {
+    background: linear-gradient(180deg, #2d1810, #1f120a);
+    border: 1px solid rgba(253,239,66,0.3);
+    border-radius: 14px;
+    padding: 24px 28px 20px;
+    width: 360px;
+    max-width: 90vw;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,133,63,0.2);
+    position: relative;
+    overflow: hidden;
+    animation: modal-pop 0.22s cubic-bezier(0.34,1.56,0.64,1);
+  }
+  @keyframes modal-pop {
+    from { transform: scale(0.8); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .modal-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 5px;
+    background: linear-gradient(90deg, #00853f 33%, #fdef42 33%, #fdef42 66%, #e31b23 66%);
+  }
+  .modal-card h3 {
+    margin: 6px 0 12px;
+    color: #fdef42;
+    text-align: center;
+    letter-spacing: 1.5px;
+    font-size: 1.1em;
+  }
+  .modal-card p {
+    color: #f4ead5;
+    font-size: 0.95em;
+    line-height: 1.5;
+    text-align: center;
+    margin: 0 0 18px;
+    white-space: pre-line;
+  }
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+  }
+  .modal-actions button { padding: 9px 18px; font-size: 0.9em; }
+
   @media (max-width: 560px) {
     :root { --cell: 60px; --piece: 44px; --piece-font: 1.1em; }
     body { padding: 10px; }
@@ -379,6 +437,17 @@
 </style>
 </head>
 <body>
+  <div id="modal" class="hidden">
+    <div class="modal-card">
+      <h3 id="modalTitle"></h3>
+      <p id="modalMessage"></p>
+      <div class="modal-actions">
+        <button id="modalCancel" class="neutral">Annuler</button>
+        <button id="modalOk">OK</button>
+      </div>
+    </div>
+  </div>
+
   <div id="lobby">
     <div class="lobby-card">
       <h2>12 PIONS <span style="color:#00853f">★</span></h2>
@@ -861,15 +930,42 @@ function doReset() {
   setStatus('Au tour de Vert');
   render();
 }
-document.getElementById('drawBtn').addEventListener('click', () => {
+function ask({title, message, okText='OK', cancelText='Annuler', danger=false}) {
+  return new Promise(resolve => {
+    const modal = document.getElementById('modal');
+    document.getElementById('modalTitle').textContent = title;
+    document.getElementById('modalMessage').textContent = message;
+    const ok = document.getElementById('modalOk');
+    const cancel = document.getElementById('modalCancel');
+    ok.textContent = okText;
+    cancel.textContent = cancelText;
+    ok.className = danger ? 'danger' : '';
+    modal.classList.remove('hidden');
+    function close(v) {
+      modal.classList.add('hidden');
+      ok.onclick = null; cancel.onclick = null;
+      resolve(v);
+    }
+    ok.onclick = () => close(true);
+    cancel.onclick = () => close(false);
+  });
+}
+
+document.getElementById('drawBtn').addEventListener('click', async () => {
   if (gameOver) return;
   if (online) {
     const next = (drawRequests[myColor] || 0) + 1;
     const remaining = MAX_DRAW_REQUESTS - next;
-    const warn = remaining <= 0
-      ? `Attention : ce sera ta ${MAX_DRAW_REQUESTS}e demande — tu perdras automatiquement la partie. Confirmer ?`
-      : `Proposer le match nul à l'adversaire ? (${next}/${MAX_DRAW_REQUESTS} — ${remaining} restante${remaining>1?'s':''} avant forfait)`;
-    if (!confirm(warn)) return;
+    const isForfeit = remaining <= 0;
+    const ok = await ask({
+      title: isForfeit ? 'Dernière demande !' : 'Match nul',
+      message: isForfeit
+        ? `Ce sera ta ${MAX_DRAW_REQUESTS}e demande de match nul.\nTu perdras automatiquement la partie.\n\nConfirmer ?`
+        : `Proposer le match nul à l'adversaire ?\n\n${next}/${MAX_DRAW_REQUESTS} — ${remaining} restante${remaining>1?'s':''} avant forfait`,
+      okText: isForfeit ? 'Confirmer' : 'Proposer',
+      danger: isForfeit
+    });
+    if (!ok) return;
     drawRequests[myColor] = next;
     if (next >= MAX_DRAW_REQUESTS) {
       send({type:'action', action:{type:'drawForfeit', loser: myColor}});
@@ -879,7 +975,12 @@ document.getElementById('drawBtn').addEventListener('click', () => {
     send({type:'action', action:{type:'drawRequest', from: myColor}});
     setStatus(`Proposition de match nul envoyée… (${next}/${MAX_DRAW_REQUESTS})`);
   } else {
-    if (confirm('Match nul d\'un commun accord ?')) doDraw();
+    const ok = await ask({
+      title: 'Match nul',
+      message: 'Match nul d\'un commun accord ?',
+      okText: 'Accepter'
+    });
+    if (ok) doDraw();
   }
 });
 document.getElementById('resetBtn').addEventListener('click', () => {
@@ -896,7 +997,7 @@ const lobbyEl = document.getElementById('lobby');
 const lobbyStatus = document.getElementById('lobbyStatus');
 const myBadge = document.getElementById('myBadge');
 
-function applyRemoteAction(a) {
+async function applyRemoteAction(a) {
   applyingRemote = true;
   try {
     if (a.type === 'cellClick') onCellClick(a.r, a.c);
@@ -908,8 +1009,13 @@ function applyRemoteAction(a) {
       if (a.from) drawRequests[a.from] = (drawRequests[a.from] || 0) + 1;
       const count = a.from ? drawRequests[a.from] : 0;
       const left = MAX_DRAW_REQUESTS - count;
-      const suffix = a.from ? ` (${count}/${MAX_DRAW_REQUESTS} — ${left} avant forfait)` : '';
-      const accept = confirm(`L'adversaire propose le match nul.${suffix}\nAccepter ?`);
+      const suffix = a.from ? `\n\n${count}/${MAX_DRAW_REQUESTS} — ${left} avant son forfait` : '';
+      const accept = await ask({
+        title: 'Proposition de match nul',
+        message: `L'adversaire propose le match nul.${suffix}`,
+        okText: 'Accepter',
+        cancelText: 'Refuser'
+      });
       if (accept) {
         send({type:'action', action:{type:'drawAccept'}});
         doDraw();
