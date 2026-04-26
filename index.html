@@ -631,6 +631,7 @@ let board, turn, selected, mustContinueFrom, surplaceMode, gameOver;
 let surplaceTargets = new Set();
 let preMoveCaptureSet = new Set();
 let preMoveCaptureMoves = new Map();
+let surplaceDemos = new Map();
 let turnStartFrom = null;
 let turnDidCapture = false;
 let lastMoveTo = null;
@@ -674,6 +675,7 @@ function initState() {
   surplaceMode = false;
   gameOver = false;
   surplaceTargets = new Set();
+  surplaceDemos = new Map();
   preMoveCaptureSet = new Set();
   preMoveCaptureMoves = new Map();
   turnStartFrom = null;
@@ -1077,30 +1079,41 @@ function doCapture(fr, fc, move) {
 
 function computeSurplaceTargets(playerWhoJustMoved, movedTo) {
   const targets = new Set();
+  surplaceDemos = new Map();
   if (turnDidCapture) {
-    // Capture(s) effectuée(s) : surplace seulement si un coudou a été abandonné
-    // (le pion qui vient de capturer pouvait encore enchaîner).
     if (movedTo) {
       const piece = board[movedTo.r][movedTo.c];
-      if (piece && captureMoves(movedTo.r, movedTo.c).length > 0) {
-        targets.add(key(movedTo.r, movedTo.c));
+      if (piece) {
+        const chainMoves = captureMoves(movedTo.r, movedTo.c);
+        if (chainMoves.length > 0) {
+          const k = key(movedTo.r, movedTo.c);
+          targets.add(k);
+          surplaceDemos.set(k, { origin: {r: movedTo.r, c: movedTo.c}, move: chainMoves[0] });
+        }
       }
     }
     return targets;
   }
-  // Aucune capture ce tour-ci : tous les pions qui avaient une capture dispo
-  // en début de tour sont surplaçables (dames incluses).
   for (const k of preMoveCaptureSet) {
     const [r,c] = k.split(',').map(Number);
     if (turnStartFrom && r === turnStartFrom.r && c === turnStartFrom.c) continue;
     const p = board[r][c];
     if (!p || p.p !== playerWhoJustMoved) continue;
     targets.add(k);
+    const moves = preMoveCaptureMoves.get(k);
+    if (moves && moves.length > 0) {
+      surplaceDemos.set(k, { origin: {r, c}, move: moves[0] });
+    }
   }
   if (turnStartFrom && movedTo) {
     const startKey = key(turnStartFrom.r, turnStartFrom.c);
     if (preMoveCaptureSet.has(startKey)) {
-      targets.add(key(movedTo.r, movedTo.c));
+      const movedKey = key(movedTo.r, movedTo.c);
+      targets.add(movedKey);
+      const moves = preMoveCaptureMoves.get(startKey);
+      if (moves && moves.length > 0) {
+        surplaceDemos.set(movedKey, { origin: {r: turnStartFrom.r, c: turnStartFrom.c}, move: moves[0] });
+      }
     }
   }
   return targets;
@@ -1183,15 +1196,12 @@ function handleSurplaceClick(r, c) {
   if (!surplaceTargets.has(key(r,c))) { setStatus(`Surplace refusé`); return; }
   const killer = turn;
   const fautif = piece.p === 'X' ? 'Vert' : 'Rouge';
-  let originR = r, originC = c;
-  if (turnStartFrom && lastMoveTo && r === lastMoveTo.r && c === lastMoveTo.c) {
-    originR = turnStartFrom.r;
-    originC = turnStartFrom.c;
-  }
-  let demo = null;
-  const originKey = key(originR, originC);
-  if (preMoveCaptureMoves.has(originKey)) {
-    demo = preMoveCaptureMoves.get(originKey)[0];
+  let originR = r, originC = c, demo = null;
+  const info = surplaceDemos.get(key(r, c));
+  if (info) {
+    originR = info.origin.r;
+    originC = info.origin.c;
+    demo = info.move;
   } else {
     const fallback = captureMoves(r, c);
     if (fallback.length > 0) demo = fallback[0];
