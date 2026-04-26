@@ -642,6 +642,7 @@ const MAX_DRAW_REQUESTS = 3;
 let pendingAppear = new Set();
 let pendingPromote = new Set();
 let pendingChain = null;
+let captureCountThisTurn = 0;
 
 // --- Online ---
 let socket = null;
@@ -683,6 +684,7 @@ function initState() {
   pendingAppear.clear();
   pendingPromote.clear();
   pendingChain = null;
+  captureCountThisTurn = 0;
   document.getElementById('trophyX').innerHTML = '';
   document.getElementById('trophyO').innerHTML = '';
   snapshotPreMove();
@@ -793,9 +795,10 @@ const surplaceBtn = document.getElementById('surplaceBtn');
 const COUDOU_DELAY_MS = 3000;
 let coudouTimer = null;
 function clearCoudouTimer() { if (coudouTimer) { clearTimeout(coudouTimer); coudouTimer = null; } }
-function showCoudouBanner() {
+function showCoudouBanner(label) {
   const b = document.getElementById('coudouBanner');
   if (!b) return;
+  b.textContent = label || 'COUDOU !';
   b.classList.remove('show');
   void b.offsetHeight;
   b.classList.add('show');
@@ -844,6 +847,7 @@ function passTurn() {
   selected = null;
   surplaceMode = false;
   pendingChain = null;
+  captureCountThisTurn = 0;
   document.getElementById('surplaceBtn').textContent = 'Surplace';
   bindSurplace();
   turn = opponent(turn);
@@ -1051,15 +1055,14 @@ function doCapture(fr, fc, move) {
     mustContinueFrom = {r: move.r, c: move.c};
     selected = mustContinueFrom;
     const player = turn;
-    const canChain = captureMoves(move.r, move.c).length > 0;
-    if (canChain) {
-      pendingChain = key(move.r, move.c);
-      showCoudouBanner();
-      setStatus(`${player === 'X' ? 'Vert' : 'Rouge'} : COUDOU possible !`);
-    } else {
-      pendingChain = null;
-      setStatus(`${player === 'X' ? 'Vert' : 'Rouge'} : tour en cours...`);
+    captureCountThisTurn++;
+    pendingChain = null;
+    if (captureCountThisTurn >= 2) {
+      const chainN = captureCountThisTurn - 1;
+      const label = chainN === 1 ? 'COUDOU !' : `COUDOU ×${chainN} !`;
+      showCoudouBanner(label);
     }
+    setStatus(`${player === 'X' ? 'Vert' : 'Rouge'} : tour en cours...`);
     render();
     // Only the active player's client owns the auto-end timer; it broadcasts when it fires.
     if (!online || (myColor === turn && !applyingRemote)) {
@@ -1126,6 +1129,7 @@ function endTurn() {
   mustContinueFrom = null;
   selected = null;
   pendingChain = null;
+  captureCountThisTurn = 0;
   if (countPieces(opponent(turn)) === 0) {
     gameOver = true;
     setStatus(`Victoire de ${turn === 'X' ? 'Vert' : 'Rouge'} !`);
