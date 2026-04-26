@@ -1,0 +1,883 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>12 Pions</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background:
+      radial-gradient(ellipse at 10% 0%, rgba(0,133,63,0.18) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 100%, rgba(227,27,35,0.18) 0%, transparent 50%),
+      linear-gradient(180deg, #1a0f08 0%, #2d1810 100%);
+    color: #f4ead5;
+    margin: 0;
+    padding: 20px;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+  }
+  h1 {
+    margin: 0;
+    font-size: 2.2em;
+    letter-spacing: 3px;
+    color: #fdef42;
+    text-shadow: 0 2px 8px rgba(0,0,0,0.6), 0 0 20px rgba(253,239,66,0.3);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  h1 .star { color: #00853f; font-size: 0.9em; }
+  .subtitle {
+    font-size: 0.85em;
+    letter-spacing: 4px;
+    color: #fdef42cc;
+    margin-bottom: 10px;
+    text-transform: uppercase;
+  }
+  .flag-stripe {
+    display: flex;
+    width: 220px;
+    height: 6px;
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 6px 0 14px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  .flag-stripe div { flex: 1; }
+  .flag-stripe .g { background: #00853f; }
+  .flag-stripe .y { background: #fdef42; position: relative; }
+  .flag-stripe .y::after {
+    content: "★";
+    position: absolute;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: #00853f;
+    font-size: 8px;
+  }
+  .flag-stripe .r { background: #e31b23; }
+  #status {
+    font-size: 1.05em;
+    margin: 8px 0 18px;
+    min-height: 1.5em;
+    text-align: center;
+    color: #cfd6e0;
+    letter-spacing: 0.5px;
+  }
+  #arena {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    align-items: stretch;
+  }
+  .panel {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.08);
+    border-radius: 14px;
+    padding: 12px 16px;
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 16px;
+    backdrop-filter: blur(6px);
+    transition: box-shadow 0.4s, border-color 0.4s;
+  }
+  .panel-header {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-width: 80px;
+  }
+  .panel.active-X { border-color: #1ec96b; box-shadow: 0 0 32px rgba(0,133,63,0.55); }
+  .panel.active-O { border-color: #ff5c5c; box-shadow: 0 0 32px rgba(227,27,35,0.55); }
+  .panel-title {
+    font-size: 1.2em;
+    font-weight: 700;
+    text-align: center;
+    letter-spacing: 2px;
+  }
+  .panel-X .panel-title { color: #1ec96b; }
+  .panel-O .panel-title { color: #ff5c5c; }
+  .panel-count {
+    text-align: center;
+    font-size: 1.8em;
+    font-weight: 700;
+    line-height: 1;
+  }
+  .trophy-pile {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+    align-items: center;
+    flex: 1;
+    min-height: 40px;
+    padding: 6px 10px;
+    background: rgba(0,0,0,0.25);
+    border-radius: 8px;
+  }
+  .trophy {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-weight: bold;
+    font-size: 0.85em;
+    box-shadow: inset 0 -2px 4px rgba(0,0,0,0.4), 0 1px 2px rgba(0,0,0,0.6);
+    animation: trophy-drop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  .trophy.X { background: radial-gradient(circle at 30% 30%, #4ee08d, #00853f 70%, #005029); }
+  .trophy.O { background: radial-gradient(circle at 30% 30%, #ff7a7a, #e31b23 70%, #8a1015); }
+  @keyframes trophy-drop {
+    0%   { transform: scale(0) rotate(-90deg); opacity: 0; }
+    60%  { transform: scale(1.3) rotate(10deg); opacity: 1; }
+    100% { transform: scale(1) rotate(0); }
+  }
+  #board {
+    display: grid;
+    grid-template-columns: repeat(5, 90px);
+    grid-template-rows: repeat(5, 90px);
+    background: linear-gradient(145deg, #c89058, #8a5a28);
+    padding: 14px;
+    border-radius: 12px;
+    border: 2px solid rgba(253,239,66,0.4);
+    box-shadow:
+      0 12px 40px rgba(0,0,0,0.6),
+      0 0 0 4px rgba(0,133,63,0.25),
+      inset 0 2px 6px rgba(255,255,255,0.18),
+      inset 0 -4px 10px rgba(0,0,0,0.35);
+  }
+  .cell {
+    background: linear-gradient(145deg, #ecc89c, #d2a472);
+    border: 1px solid rgba(74,48,23,0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    position: relative;
+    transition: background 0.2s, transform 0.15s;
+  }
+  .cell:hover { filter: brightness(1.08); }
+  .cell.center::before, .cell.center::after {
+    content: "";
+    position: absolute;
+    width: 70%;
+    height: 3px;
+    background: rgba(74,48,23,0.55);
+    border-radius: 2px;
+    pointer-events: none;
+  }
+  .cell.center::before { transform: rotate(45deg); }
+  .cell.center::after  { transform: rotate(-45deg); }
+  .cell.selected {
+    background: linear-gradient(145deg, #fff5a0, #fdef42) !important;
+    box-shadow: inset 0 0 22px rgba(253,239,66,0.9);
+  }
+  .piece {
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: bold;
+    font-size: 1.6em;
+    color: white;
+    cursor: pointer;
+    transition: transform 0.15s;
+    position: relative;
+    user-select: none;
+  }
+  .piece:hover { transform: scale(1.05); }
+  .piece.X {
+    background: radial-gradient(circle at 30% 30%, #4ee08d, #00853f 60%, #003d1d);
+    box-shadow:
+      inset 0 -4px 10px rgba(0,0,0,0.45),
+      inset 0 4px 8px rgba(255,255,255,0.3),
+      0 4px 8px rgba(0,0,0,0.5);
+  }
+  .piece.O {
+    background: radial-gradient(circle at 30% 30%, #ff7a7a, #e31b23 60%, #7a0d12);
+    box-shadow:
+      inset 0 -4px 10px rgba(0,0,0,0.45),
+      inset 0 4px 8px rgba(255,255,255,0.3),
+      0 4px 8px rgba(0,0,0,0.5);
+  }
+  .piece.dame::after {
+    content: "♛";
+    position: absolute;
+    font-size: 1.2em;
+    color: gold;
+    text-shadow: 0 0 6px rgba(0,0,0,0.8);
+    pointer-events: none;
+  }
+  .piece.appearing { animation: piece-in 0.25s ease-out; }
+  @keyframes piece-in {
+    from { transform: scale(0.4); opacity: 0; }
+    to   { transform: scale(1); opacity: 1; }
+  }
+  .piece.dying { animation: piece-die 0.4s forwards; }
+  @keyframes piece-die {
+    0%   { transform: scale(1) rotate(0); opacity: 1; }
+    50%  { transform: scale(1.3) rotate(15deg); opacity: 0.8; filter: brightness(1.5); }
+    100% { transform: scale(0) rotate(45deg); opacity: 0; }
+  }
+  .piece.dame-promote { animation: dame-glow 0.8s ease-out; }
+  @keyframes dame-glow {
+    0%   { box-shadow: 0 0 0 0 rgba(255,215,0,0.9); }
+    50%  { box-shadow: 0 0 30px 12px rgba(255,215,0,0.7); transform: scale(1.15); }
+    100% { box-shadow: inset 0 -4px 10px rgba(0,0,0,0.4), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 8px rgba(0,0,0,0.5); }
+  }
+  #controls {
+    margin-top: 18px;
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  button {
+    padding: 10px 22px;
+    font-size: 0.95em;
+    font-weight: 700;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    background: linear-gradient(145deg, #1ec96b, #00853f);
+    color: white;
+    letter-spacing: 0.5px;
+    box-shadow: 0 3px 6px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.25);
+    transition: transform 0.1s, filter 0.15s;
+  }
+  button:hover:not(:disabled) { filter: brightness(1.15); transform: translateY(-1px); }
+  button:active:not(:disabled) { transform: translateY(1px); }
+  button:disabled { opacity: 0.4; cursor: not-allowed; }
+  button.danger { background: linear-gradient(145deg, #ff5c5c, #c41a22); }
+  button.neutral {
+    background: linear-gradient(145deg, #fdef42, #d4c020);
+    color: #2d1810;
+    text-shadow: none;
+  }
+  #lobby {
+    position: fixed;
+    inset: 0;
+    background: rgba(10,12,20,0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 100;
+  }
+  .lobby-card {
+    background: linear-gradient(180deg, #2d1810, #1f120a);
+    border: 1px solid rgba(253,239,66,0.25);
+    border-radius: 14px;
+    padding: 28px 32px;
+    width: 380px;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.7), 0 0 0 1px rgba(0,133,63,0.2);
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    position: relative;
+    overflow: hidden;
+  }
+  .lobby-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 6px;
+    background: linear-gradient(90deg, #00853f 33%, #fdef42 33%, #fdef42 66%, #e31b23 66%);
+  }
+  .lobby-card h2 {
+    margin: 4px 0 4px;
+    text-align: center;
+    letter-spacing: 3px;
+    color: #fdef42;
+    font-size: 1.6em;
+  }
+  .lobby-card .welcome {
+    text-align: center;
+    color: #f4ead5;
+    font-size: 0.95em;
+    line-height: 1.5;
+    margin-bottom: 8px;
+  }
+  .lobby-card .welcome em {
+    color: #fdef42;
+    font-style: normal;
+    font-weight: 600;
+  }
+  .lobby-card .row { display: flex; gap: 8px; }
+  .lobby-card input {
+    flex: 1;
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid rgba(255,255,255,0.15);
+    background: #14172a;
+    color: white;
+    font-size: 1.1em;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    text-align: center;
+  }
+  .lobby-card .sep {
+    text-align: center;
+    color: #666;
+    font-size: 0.85em;
+    margin: 4px 0;
+  }
+  #lobbyStatus {
+    text-align: center;
+    color: #ffd96a;
+    min-height: 1.2em;
+    font-size: 0.95em;
+    word-break: break-all;
+  }
+  .badge-color {
+    display: inline-block;
+    padding: 2px 10px;
+    border-radius: 10px;
+    font-size: 0.85em;
+    font-weight: 600;
+    margin-left: 8px;
+  }
+  .badge-color.X { background: #00853f; }
+  .badge-color.O { background: #e31b23; }
+</style>
+</head>
+<body>
+  <div id="lobby">
+    <div class="lobby-card">
+      <h2>12 PIONS <span style="color:#00853f">★</span></h2>
+      <div class="welcome">
+        <em>Dalal ak diam</em> — bienvenue !<br>
+        Le jeu de notre enfance, version sénégalaise.
+      </div>
+      <button id="btnLocal">Jouer ici (2 joueurs)</button>
+      <div class="sep">— ou jouer en ligne —</div>
+      <button id="btnCreate">Créer une partie</button>
+      <div class="row">
+        <input id="codeInput" maxlength="5" placeholder="CODE">
+        <button id="btnJoin" class="neutral">Rejoindre</button>
+      </div>
+      <div id="lobbyStatus"></div>
+    </div>
+  </div>
+
+  <h1><span class="star">★</span> 12 PIONS <span class="star">★</span></h1>
+  <div class="subtitle">Senegal</div>
+  <div class="flag-stripe"><div class="g"></div><div class="y"></div><div class="r"></div></div>
+  <div id="status">Au tour de Vert<span id="myBadge"></span></div>
+  <div id="arena">
+    <div class="panel panel-X" id="panelX">
+      <div class="panel-header">
+        <div class="panel-title">VERT</div>
+        <div class="panel-count" id="countX">12</div>
+      </div>
+      <div class="trophy-pile" id="trophyX"></div>
+    </div>
+    <div id="board"></div>
+    <div class="panel panel-O" id="panelO">
+      <div class="panel-header">
+        <div class="panel-title">ROUGE</div>
+        <div class="panel-count" id="countO">12</div>
+      </div>
+      <div class="trophy-pile" id="trophyO"></div>
+    </div>
+  </div>
+  <div id="controls">
+    <button id="surplaceBtn" class="danger">Surplace</button>
+    <button id="drawBtn" class="neutral">Match nul</button>
+    <button id="resetBtn" class="neutral">Nouvelle partie</button>
+  </div>
+
+<script>
+const SIZE = 5;
+
+let board, turn, selected, mustContinueFrom, surplaceMode, gameOver;
+let surplaceTargets = new Set();
+let preMoveCaptureSet = new Set();
+let turnStartFrom = null;
+let turnDidCapture = false;
+let lastMoveTo = null;
+// Trophies: pieces each player has captured. trophiesX = O pieces taken by X.
+let trophiesX = 0, trophiesO = 0;
+// Animation queue: cells that should play "appearing" animation on next render.
+let pendingAppear = new Set();
+let pendingPromote = new Set();
+
+// --- Online ---
+let socket = null;
+let online = false;
+let myColor = null;
+let applyingRemote = false;
+
+function send(msg) {
+  if (socket && socket.readyState === 1) socket.send(JSON.stringify(msg));
+}
+function broadcast(action) {
+  if (online && !applyingRemote) send({type:'action', action});
+}
+function isMyTurn() { return !online || turn === myColor; }
+
+function initState() {
+  board = Array.from({length: SIZE}, () => Array(SIZE).fill(null));
+  for (let c = 0; c < 5; c++) board[0][c] = { p: 'X', dame: false };
+  for (let c = 0; c < 5; c++) board[1][c] = { p: 'X', dame: false };
+  board[2][0] = { p: 'X', dame: false };
+  board[2][1] = { p: 'X', dame: false };
+  for (let c = 0; c < 5; c++) board[4][c] = { p: 'O', dame: false };
+  for (let c = 0; c < 5; c++) board[3][c] = { p: 'O', dame: false };
+  board[2][3] = { p: 'O', dame: false };
+  board[2][4] = { p: 'O', dame: false };
+  turn = 'X';
+  selected = null;
+  mustContinueFrom = null;
+  surplaceMode = false;
+  gameOver = false;
+  surplaceTargets = new Set();
+  preMoveCaptureSet = new Set();
+  turnStartFrom = null;
+  turnDidCapture = false;
+  lastMoveTo = null;
+  trophiesX = 0; trophiesO = 0;
+  pendingAppear.clear();
+  pendingPromote.clear();
+  document.getElementById('trophyX').innerHTML = '';
+  document.getElementById('trophyO').innerHTML = '';
+  snapshotPreMove();
+}
+
+function opponent(p) { return p === 'X' ? 'O' : 'X'; }
+function forwardDir(p) { return p === 'X' ? 1 : -1; }
+function pionDirs(p) { return [[forwardDir(p), 0], [0, -1], [0, 1]]; }
+const ORTHO = [[1,0],[-1,0],[0,1],[0,-1]];
+function inBounds(r, c) { return r>=0 && r<SIZE && c>=0 && c<SIZE; }
+function key(r,c) { return r + ',' + c; }
+
+function snapshotPreMove() {
+  preMoveCaptureSet = new Set();
+  for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++) {
+    const p = board[r][c];
+    if (p && p.p === turn && captureMoves(r,c).length > 0) {
+      preMoveCaptureSet.add(key(r,c));
+    }
+  }
+  turnStartFrom = null;
+  turnDidCapture = false;
+}
+
+function simpleMoves(r, c) {
+  const piece = board[r][c];
+  if (!piece) return [];
+  const out = [];
+  if (piece.dame) {
+    for (const [dr,dc] of ORTHO) {
+      let nr = r+dr, nc = c+dc;
+      while (inBounds(nr,nc) && !board[nr][nc]) { out.push({r:nr, c:nc}); nr += dr; nc += dc; }
+    }
+  } else {
+    for (const [dr,dc] of pionDirs(piece.p)) {
+      const nr = r+dr, nc = c+dc;
+      if (inBounds(nr,nc) && !board[nr][nc]) out.push({r:nr, c:nc});
+    }
+  }
+  return out;
+}
+
+function captureMoves(r, c) {
+  const piece = board[r][c];
+  if (!piece) return [];
+  const out = [];
+  if (piece.dame) {
+    for (const [dr,dc] of ORTHO) {
+      let nr = r+dr, nc = c+dc;
+      while (inBounds(nr,nc) && !board[nr][nc]) { nr += dr; nc += dc; }
+      if (!inBounds(nr,nc)) continue;
+      if (board[nr][nc].p === piece.p) continue;
+      const capR = nr, capC = nc;
+      let lr = nr+dr, lc = nc+dc;
+      while (inBounds(lr,lc) && !board[lr][lc]) {
+        out.push({r:lr, c:lc, captured:{r:capR, c:capC}});
+        lr += dr; lc += dc;
+      }
+    }
+  } else {
+    for (const [dr,dc] of pionDirs(piece.p)) {
+      const mr = r+dr, mc = c+dc;
+      const lr = r+2*dr, lc = c+2*dc;
+      if (!inBounds(lr,lc)) continue;
+      const mid = board[mr][mc];
+      if (mid && mid.p !== piece.p && !board[lr][lc]) {
+        out.push({r:lr, c:lc, captured:{r:mr, c:mc}});
+      }
+    }
+  }
+  return out;
+}
+
+function allMovesForPlayer(p) {
+  const list = [];
+  for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++) {
+    if (board[r][c] && board[r][c].p === p) {
+      for (const m of simpleMoves(r,c)) list.push({from:{r,c}, to:m, capture:false});
+      for (const m of captureMoves(r,c)) list.push({from:{r,c}, to:{r:m.r,c:m.c}, capture:true, captured:m.captured});
+    }
+  }
+  return list;
+}
+
+function countPieces(p) {
+  let n = 0;
+  for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++)
+    if (board[r][c] && board[r][c].p === p) n++;
+  return n;
+}
+
+function maybePromote(r, c) {
+  const piece = board[r][c];
+  if (!piece || piece.dame) return false;
+  if (piece.p === 'X' && r === SIZE-1) { piece.dame = true; return true; }
+  if (piece.p === 'O' && r === 0) { piece.dame = true; return true; }
+  return false;
+}
+
+const boardEl = document.getElementById('board');
+const statusEl = document.getElementById('status');
+const surplaceBtn = document.getElementById('surplaceBtn');
+const COUDOU_DELAY_MS = 3000;
+let coudouTimer = null;
+function clearCoudouTimer() { if (coudouTimer) { clearTimeout(coudouTimer); coudouTimer = null; } }
+
+function render() {
+  boardEl.innerHTML = '';
+  for (let r = 0; r < SIZE; r++) {
+    for (let c = 0; c < SIZE; c++) {
+      const cell = document.createElement('div');
+      cell.className = 'cell' + (r === 2 && c === 2 ? ' center' : '');
+      cell.dataset.r = r;
+      cell.dataset.c = c;
+      const piece = board[r][c];
+      if (piece) {
+        const p = document.createElement('div');
+        p.className = 'piece ' + piece.p + (piece.dame ? ' dame' : '');
+        const k = key(r,c);
+        if (pendingAppear.has(k)) p.classList.add('appearing');
+        if (pendingPromote.has(k)) p.classList.add('dame-promote');
+        p.textContent = piece.p;
+        cell.appendChild(p);
+      }
+      cell.addEventListener('click', () => onCellClick(r, c));
+      boardEl.appendChild(cell);
+    }
+  }
+  pendingAppear.clear();
+  pendingPromote.clear();
+
+  if (selected) {
+    const sel = boardEl.querySelector(`[data-r="${selected.r}"][data-c="${selected.c}"]`);
+    if (sel) sel.classList.add('selected');
+  }
+
+  document.getElementById('countX').textContent = countPieces('X');
+  document.getElementById('countO').textContent = countPieces('O');
+
+  const panelX = document.getElementById('panelX');
+  const panelO = document.getElementById('panelO');
+  panelX.classList.toggle('active-X', turn === 'X' && !gameOver);
+  panelO.classList.toggle('active-O', turn === 'O' && !gameOver);
+
+  surplaceBtn.disabled = mustContinueFrom !== null || gameOver || (online && !isMyTurn());
+}
+
+function addTrophy(killerPlayer) {
+  // killerPlayer captured an opponent piece → opponent-colored trophy in killer's panel
+  const opp = opponent(killerPlayer);
+  const pile = document.getElementById('trophy' + killerPlayer);
+  const t = document.createElement('div');
+  t.className = 'trophy ' + opp;
+  t.textContent = opp;
+  pile.appendChild(t);
+  if (killerPlayer === 'X') trophiesX++; else trophiesO++;
+}
+
+function animateCapture(r, c, killerPlayer, after) {
+  const cell = boardEl.querySelector(`[data-r="${r}"][data-c="${c}"]`);
+  const piece = cell ? cell.querySelector('.piece') : null;
+  if (piece) {
+    piece.classList.add('dying');
+    setTimeout(() => { addTrophy(killerPlayer); after(); }, 380);
+  } else {
+    addTrophy(killerPlayer);
+    after();
+  }
+}
+
+function setStatus(msg) { statusEl.textContent = msg; }
+
+function onCellClick(r, c) {
+  if (gameOver) return;
+  if (online && !applyingRemote && !isMyTurn()) return;
+  if (!applyingRemote) broadcast({type:'cellClick', r, c});
+  if (surplaceMode) { handleSurplaceClick(r, c); return; }
+  const piece = board[r][c];
+
+  if (mustContinueFrom) {
+    if (r === mustContinueFrom.r && c === mustContinueFrom.c) return;
+    const caps = captureMoves(mustContinueFrom.r, mustContinueFrom.c);
+    const target = caps.find(m => m.r === r && m.c === c);
+    if (target) doCapture(mustContinueFrom.r, mustContinueFrom.c, target);
+    return;
+  }
+
+  if (selected) {
+    if (r === selected.r && c === selected.c) { selected = null; render(); return; }
+    const caps = captureMoves(selected.r, selected.c);
+    const cap = caps.find(m => m.r === r && m.c === c);
+    if (cap) { doCapture(selected.r, selected.c, cap); return; }
+    const moves = simpleMoves(selected.r, selected.c);
+    const mv = moves.find(m => m.r === r && m.c === c);
+    if (mv) { doSimpleMove(selected.r, selected.c, mv); return; }
+    if (piece && piece.p === turn) { selected = {r,c}; render(); return; }
+    selected = null; render(); return;
+  }
+
+  if (piece && piece.p === turn) { selected = {r,c}; render(); }
+}
+
+function doSimpleMove(fr, fc, to) {
+  if (turnStartFrom === null) turnStartFrom = {r:fr, c:fc};
+  board[to.r][to.c] = board[fr][fc];
+  board[fr][fc] = null;
+  pendingAppear.add(key(to.r, to.c));
+  if (maybePromote(to.r, to.c)) pendingPromote.add(key(to.r, to.c));
+  lastMoveTo = {r: to.r, c: to.c};
+  selected = null;
+  endTurn();
+}
+
+function doCapture(fr, fc, move) {
+  if (turnStartFrom === null) turnStartFrom = {r:fr, c:fc};
+  turnDidCapture = true;
+  clearCoudouTimer();
+  const killer = turn;
+  animateCapture(move.captured.r, move.captured.c, killer, () => {
+    board[move.r][move.c] = board[fr][fc];
+    board[fr][fc] = null;
+    board[move.captured.r][move.captured.c] = null;
+    pendingAppear.add(key(move.r, move.c));
+    if (maybePromote(move.r, move.c)) pendingPromote.add(key(move.r, move.c));
+    lastMoveTo = {r: move.r, c: move.c};
+    mustContinueFrom = {r: move.r, c: move.c};
+    selected = mustContinueFrom;
+    const player = turn;
+    setStatus(`${player === 'X' ? 'Vert' : 'Rouge'} : tour en cours...`);
+    render();
+    // Only the active player's client owns the auto-end timer; it broadcasts when it fires.
+    if (!online || (myColor === turn && !applyingRemote)) {
+      coudouTimer = setTimeout(() => {
+        coudouTimer = null;
+        if (mustContinueFrom) {
+          broadcast({type:'autoEnd'});
+          endTurn();
+        }
+      }, COUDOU_DELAY_MS);
+    }
+  });
+}
+
+function computeSurplaceTargets(playerWhoJustMoved, movedTo) {
+  const targets = new Set();
+  for (const k of preMoveCaptureSet) {
+    const [r,c] = k.split(',').map(Number);
+    const p = board[r][c];
+    if (!p || p.p !== playerWhoJustMoved) continue;
+    if (turnStartFrom && r === turnStartFrom.r && c === turnStartFrom.c) continue;
+    targets.add(k);
+  }
+  if (turnStartFrom && movedTo) {
+    const startKey = key(turnStartFrom.r, turnStartFrom.c);
+    const hadCaptureAtStart = preMoveCaptureSet.has(startKey);
+    if (!turnDidCapture && hadCaptureAtStart) {
+      targets.add(key(movedTo.r, movedTo.c));
+    } else if (turnDidCapture) {
+      const piece = board[movedTo.r][movedTo.c];
+      if (piece && captureMoves(movedTo.r, movedTo.c).length > 0) {
+        targets.add(key(movedTo.r, movedTo.c));
+      }
+    }
+  }
+  return targets;
+}
+
+function endTurn() {
+  clearCoudouTimer();
+  surplaceTargets = computeSurplaceTargets(turn, lastMoveTo);
+  mustContinueFrom = null;
+  selected = null;
+  if (countPieces(opponent(turn)) === 0) {
+    gameOver = true;
+    setStatus(`Victoire de ${turn === 'X' ? 'Vert' : 'Rouge'} !`);
+    render();
+    return;
+  }
+  turn = opponent(turn);
+  if (allMovesForPlayer(turn).length === 0) {
+    gameOver = true;
+    setStatus(`${turn === 'X' ? 'Vert' : 'Rouge'} bloqué — victoire de ${opponent(turn) === 'X' ? 'Vert' : 'Rouge'} !`);
+    render();
+    return;
+  }
+  snapshotPreMove();
+  lastMoveTo = null;
+  setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
+  render();
+}
+
+function enterSurplace() {
+  if (gameOver || mustContinueFrom) return;
+  surplaceMode = true;
+  setStatus(`Surplace : clique sur le pion adverse`);
+  const btn = document.getElementById('surplaceBtn');
+  btn.textContent = 'Annuler';
+  btn.onclick = () => {
+    if (!applyingRemote) broadcast({type:'surplaceCancel'});
+    cancelSurplace();
+  };
+  render();
+}
+function cancelSurplace() {
+  surplaceMode = false;
+  const btn = document.getElementById('surplaceBtn');
+  btn.textContent = 'Surplace';
+  bindSurplace();
+  setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
+  render();
+}
+function bindSurplace() {
+  const btn = document.getElementById('surplaceBtn');
+  btn.onclick = () => {
+    if (online && !isMyTurn()) return;
+    if (!applyingRemote) broadcast({type:'surplaceEnter'});
+    enterSurplace();
+  };
+}
+
+function handleSurplaceClick(r, c) {
+  const piece = board[r][c];
+  if (!piece || piece.p === turn) { setStatus(`Choisis un pion adverse`); return; }
+  if (!surplaceTargets.has(key(r,c))) { setStatus(`Surplace refusé`); return; }
+  const killer = turn;
+  animateCapture(r, c, killer, () => {
+    board[r][c] = null;
+    // One surplace per turn — clear all targets and exit surplace mode.
+    surplaceTargets = new Set();
+    surplaceMode = false;
+    document.getElementById('surplaceBtn').textContent = 'Surplace';
+    bindSurplace();
+    if (countPieces(opponent(turn)) === 0) {
+      gameOver = true;
+      setStatus(`Victoire de ${turn === 'X' ? 'Vert' : 'Rouge'} !`);
+    } else {
+      setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
+    }
+    render();
+  });
+}
+
+function doDraw() {
+  gameOver = true;
+  setStatus('Match nul');
+  render();
+}
+function doReset() {
+  initState();
+  setStatus('Au tour de Vert');
+  render();
+}
+document.getElementById('drawBtn').addEventListener('click', () => {
+  if (gameOver) return;
+  if (confirm('Match nul d’un commun accord ?')) {
+    broadcast({type:'draw'});
+    doDraw();
+  }
+});
+document.getElementById('resetBtn').addEventListener('click', () => {
+  broadcast({type:'reset'});
+  doReset();
+});
+
+initState();
+bindSurplace();
+render();
+
+// --- Lobby wiring ---
+const lobbyEl = document.getElementById('lobby');
+const lobbyStatus = document.getElementById('lobbyStatus');
+const myBadge = document.getElementById('myBadge');
+
+function applyRemoteAction(a) {
+  applyingRemote = true;
+  try {
+    if (a.type === 'cellClick') onCellClick(a.r, a.c);
+    else if (a.type === 'surplaceEnter') enterSurplace();
+    else if (a.type === 'surplaceCancel') cancelSurplace();
+    else if (a.type === 'autoEnd') { clearCoudouTimer(); if (mustContinueFrom) endTurn(); }
+    else if (a.type === 'draw') doDraw();
+    else if (a.type === 'reset') doReset();
+  } finally {
+    applyingRemote = false;
+  }
+}
+
+function connectSocket() {
+  const proto = location.protocol === 'https:' ? 'wss://' : 'ws://';
+  socket = new WebSocket(proto + location.host);
+  socket.onmessage = (e) => {
+    let msg; try { msg = JSON.parse(e.data); } catch { return; }
+    if (msg.type === 'created') {
+      myColor = msg.color;
+      lobbyStatus.innerHTML = `Code : <b>${msg.roomId}</b><br>En attente de l'adversaire…`;
+    } else if (msg.type === 'opponentJoined') {
+      online = true;
+      lobbyEl.style.display = 'none';
+      myBadge.innerHTML = ` <span class="badge-color ${myColor}">Tu es ${myColor === 'X' ? 'Vert' : 'Rouge'}</span>`;
+    } else if (msg.type === 'joined') {
+      myColor = msg.color;
+      online = true;
+      lobbyEl.style.display = 'none';
+      myBadge.innerHTML = ` <span class="badge-color ${myColor}">Tu es ${myColor === 'X' ? 'Vert' : 'Rouge'}</span>`;
+    } else if (msg.type === 'action') {
+      applyRemoteAction(msg.action);
+    } else if (msg.type === 'opponentLeft') {
+      setStatus('Adversaire déconnecté');
+      online = false;
+    } else if (msg.type === 'error') {
+      lobbyStatus.textContent = msg.message;
+    }
+  };
+  socket.onerror = () => { lobbyStatus.textContent = 'Erreur de connexion'; };
+}
+
+document.getElementById('btnLocal').onclick = () => {
+  online = false;
+  lobbyEl.style.display = 'none';
+};
+document.getElementById('btnCreate').onclick = () => {
+  connectSocket();
+  socket.addEventListener('open', () => send({type:'create'}), { once: true });
+};
+document.getElementById('btnJoin').onclick = () => {
+  const code = document.getElementById('codeInput').value.trim().toUpperCase();
+  if (!code) { lobbyStatus.textContent = 'Entre un code'; return; }
+  connectSocket();
+  socket.addEventListener('open', () => send({type:'join', roomId: code}), { once: true });
+};
+</script>
+</body>
+</html>
