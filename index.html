@@ -797,7 +797,10 @@ function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
   const movingPiece = curCell ? curCell.querySelector('.piece') : null;
   if (!movingPiece) { then(); return; }
   const glow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 18px rgba(253,239,66,0.8)';
-  movingPiece.style.zIndex = '5';
+  movingPiece.style.zIndex = '999';
+  const prevCellZ = curCell.style.zIndex;
+  curCell.style.zIndex = '999';
+  curCell.style.position = 'relative';
 
   if (!demoMove) {
     const anim = movingPiece.animate([
@@ -805,7 +808,7 @@ function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
       { transform: 'scale(1.2)', boxShadow: glow, offset: 0.5 },
       { transform: 'scale(1)', boxShadow: 'none' }
     ], { duration: 1500, easing: 'ease-in-out' });
-    anim.onfinish = () => { movingPiece.style.zIndex = ''; then(); };
+    anim.onfinish = () => { movingPiece.style.zIndex = ''; curCell.style.zIndex = prevCellZ; then(); };
     return;
   }
 
@@ -813,7 +816,7 @@ function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
   const landCell = boardEl.querySelector(`[data-r="${demoMove.r}"][data-c="${demoMove.c}"]`);
   const capCell = boardEl.querySelector(`[data-r="${demoMove.captured.r}"][data-c="${demoMove.captured.c}"]`);
   const capPiece = capCell ? capCell.querySelector('.piece') : null;
-  if (!originCell || !landCell) { movingPiece.style.zIndex = ''; then(); return; }
+  if (!originCell || !landCell) { movingPiece.style.zIndex = ''; curCell.style.zIndex = prevCellZ; then(); return; }
 
   const curRect = curCell.getBoundingClientRect();
   const originRect = originCell.getBoundingClientRect();
@@ -845,6 +848,7 @@ function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
   const anim = movingPiece.animate(keyframes, { duration, easing: 'ease-in-out' });
   anim.onfinish = () => {
     movingPiece.style.zIndex = '';
+    curCell.style.zIndex = prevCellZ;
     if (capPiece) capPiece.classList.remove('demo-jumped');
     then();
   };
