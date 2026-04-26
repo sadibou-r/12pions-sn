@@ -572,6 +572,7 @@ const SIZE = 5;
 let board, turn, selected, mustContinueFrom, surplaceMode, gameOver;
 let surplaceTargets = new Set();
 let preMoveCaptureSet = new Set();
+let preMoveCaptureMoves = new Map();
 let turnStartFrom = null;
 let turnDidCapture = false;
 let lastMoveTo = null;
@@ -614,6 +615,7 @@ function initState() {
   gameOver = false;
   surplaceTargets = new Set();
   preMoveCaptureSet = new Set();
+  preMoveCaptureMoves = new Map();
   turnStartFrom = null;
   turnDidCapture = false;
   lastMoveTo = null;
@@ -635,10 +637,15 @@ function key(r,c) { return r + ',' + c; }
 
 function snapshotPreMove() {
   preMoveCaptureSet = new Set();
+  preMoveCaptureMoves = new Map();
   for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++) {
     const p = board[r][c];
-    if (p && p.p === turn && captureMoves(r,c).length > 0) {
-      preMoveCaptureSet.add(key(r,c));
+    if (p && p.p === turn) {
+      const moves = captureMoves(r,c);
+      if (moves.length > 0) {
+        preMoveCaptureSet.add(key(r,c));
+        preMoveCaptureMoves.set(key(r,c), moves);
+      }
     }
   }
   turnStartFrom = null;
@@ -785,12 +792,11 @@ function passTurn() {
   startTurnTimer();
 }
 
-function demonstrateMove(fr, fc, demoMove, then) {
-  const fromCell = boardEl.querySelector(`[data-r="${fr}"][data-c="${fc}"]`);
-  const movingPiece = fromCell ? fromCell.querySelector('.piece') : null;
+function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
+  const curCell = boardEl.querySelector(`[data-r="${curR}"][data-c="${curC}"]`);
+  const movingPiece = curCell ? curCell.querySelector('.piece') : null;
   if (!movingPiece) { then(); return; }
   if (!demoMove) {
-    // Pas de capture dispo à montrer : on pulse juste le pion fautif.
     movingPiece.style.transition = 'box-shadow 0.3s, transform 0.3s';
     movingPiece.style.zIndex = '5';
     movingPiece.style.boxShadow = '0 0 0 4px #fdef42, 0 0 24px 8px rgba(253,239,66,0.7)';
@@ -801,40 +807,54 @@ function demonstrateMove(fr, fc, demoMove, then) {
       movingPiece.style.boxShadow = '';
       movingPiece.style.zIndex = '';
       then();
-    }, 1800);
+    }, 1600);
     return;
   }
-  const toCell = boardEl.querySelector(`[data-r="${demoMove.r}"][data-c="${demoMove.c}"]`);
+  const originCell = boardEl.querySelector(`[data-r="${originR}"][data-c="${originC}"]`);
+  const landCell = boardEl.querySelector(`[data-r="${demoMove.r}"][data-c="${demoMove.c}"]`);
   const capCell = boardEl.querySelector(`[data-r="${demoMove.captured.r}"][data-c="${demoMove.captured.c}"]`);
   const capPiece = capCell ? capCell.querySelector('.piece') : null;
-  if (!toCell) { then(); return; }
-  const fromRect = fromCell.getBoundingClientRect();
-  const toRect = toCell.getBoundingClientRect();
-  const dx = toRect.left - fromRect.left;
-  const dy = toRect.top - fromRect.top;
-  movingPiece.style.transition = 'transform 1.4s ease-in-out, box-shadow 0.4s';
+  if (!originCell || !landCell) { then(); return; }
+  const curRect = curCell.getBoundingClientRect();
+  const originRect = originCell.getBoundingClientRect();
+  const landRect = landCell.getBoundingClientRect();
+  const dxOrigin = originRect.left - curRect.left;
+  const dyOrigin = originRect.top - curRect.top;
+  const dxLand = landRect.left - curRect.left;
+  const dyLand = landRect.top - curRect.top;
+  const needsBacktrack = (originR !== curR || originC !== curC);
+
   movingPiece.style.zIndex = '5';
   movingPiece.style.boxShadow = '0 0 0 4px #fdef42, inset 0 -4px 10px rgba(0,0,0,0.45), inset 0 4px 8px rgba(255,255,255,0.3), 0 4px 16px rgba(253,239,66,0.7)';
+  movingPiece.style.transition = 'transform 0.5s ease-in-out, box-shadow 0.4s';
   void movingPiece.offsetHeight;
-  if (capPiece) capPiece.classList.add('demo-jumped');
+
+  let t = 50;
+  if (needsBacktrack) {
+    setTimeout(() => {
+      movingPiece.style.transform = `translate(${dxOrigin}px, ${dyOrigin}px)`;
+    }, t);
+    t += 700;
+  }
   setTimeout(() => {
-    movingPiece.style.transform = `translate(${dx}px, ${dy}px)`;
-  }, 50);
+    movingPiece.style.transition = 'transform 1.2s ease-in-out, box-shadow 0.4s';
+    void movingPiece.offsetHeight;
+    movingPiece.style.transform = `translate(${dxLand}px, ${dyLand}px)`;
+    if (capPiece) capPiece.classList.add('demo-jumped');
+  }, t);
+  t += 1300;
   setTimeout(() => {
-    if (movingPiece) {
-      movingPiece.style.transition = 'transform 0.5s ease-in, box-shadow 0.3s';
-      movingPiece.style.transform = '';
-      movingPiece.style.boxShadow = '';
-    }
-  }, 1700);
+    movingPiece.style.transition = 'transform 0.5s ease-in, box-shadow 0.3s';
+    movingPiece.style.transform = '';
+    movingPiece.style.boxShadow = '';
+  }, t);
+  t += 600;
   setTimeout(() => {
-    if (movingPiece) {
-      movingPiece.style.transition = '';
-      movingPiece.style.zIndex = '';
-    }
+    movingPiece.style.transition = '';
+    movingPiece.style.zIndex = '';
     if (capPiece) capPiece.classList.remove('demo-jumped');
     then();
-  }, 2300);
+  }, t);
 }
 
 function render() {
@@ -1086,8 +1106,19 @@ function handleSurplaceClick(r, c) {
   if (!surplaceTargets.has(key(r,c))) { setStatus(`Surplace refusé`); return; }
   const killer = turn;
   const fautif = piece.p === 'X' ? 'Vert' : 'Rouge';
-  const demoMoves = captureMoves(r, c);
-  const demo = demoMoves[0];
+  let originR = r, originC = c;
+  if (turnStartFrom && lastMoveTo && r === lastMoveTo.r && c === lastMoveTo.c) {
+    originR = turnStartFrom.r;
+    originC = turnStartFrom.c;
+  }
+  let demo = null;
+  const originKey = key(originR, originC);
+  if (preMoveCaptureMoves.has(originKey)) {
+    demo = preMoveCaptureMoves.get(originKey)[0];
+  } else {
+    const fallback = captureMoves(r, c);
+    if (fallback.length > 0) demo = fallback[0];
+  }
   const banner = document.getElementById('oopsBanner');
   if (banner) banner.classList.add('show');
   setStatus(`Coup raté de ${fautif} ${demo ? '— voilà ce qu\'il devait jouer' : ''}`);
@@ -1110,7 +1141,7 @@ function handleSurplaceClick(r, c) {
       render();
     });
   };
-  demonstrateMove(r, c, demo, finish);
+  demonstrateMove(r, c, originR, originC, demo, finish);
 }
 
 function doDraw() {
