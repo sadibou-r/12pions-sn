@@ -63,12 +63,35 @@
   }
   .flag-stripe .r { background: #e31b23; }
   #status {
-    font-size: 1.05em;
-    margin: 8px 0 4px;
+    font-size: 1.1em;
+    margin: 10px auto 6px;
     min-height: 1.5em;
     text-align: center;
-    color: #cfd6e0;
-    letter-spacing: 0.5px;
+    color: #fdef42;
+    letter-spacing: 1px;
+    font-weight: 600;
+    padding: 8px 22px;
+    background: linear-gradient(180deg, rgba(45,24,16,0.85), rgba(31,18,10,0.85));
+    border: 1px solid rgba(253,239,66,0.35);
+    border-radius: 10px;
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.5),
+      inset 0 1px 0 rgba(255,255,255,0.06),
+      0 0 18px rgba(253,239,66,0.12);
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7), 0 0 10px rgba(253,239,66,0.3);
+    width: fit-content;
+    max-width: 92vw;
+  }
+  #status .badge-color { vertical-align: middle; }
+  #status .name-X {
+    color: #4ee08d;
+    font-weight: 800;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(78,224,141,0.5);
+  }
+  #status .name-O {
+    color: #ff7a7a;
+    font-weight: 800;
+    text-shadow: 0 1px 4px rgba(0,0,0,0.7), 0 0 8px rgba(255,122,122,0.5);
   }
   #turnTimer {
     font-size: 0.95em;
@@ -93,50 +116,50 @@
   }
   #oopsBanner {
     position: fixed;
-    top: 30%;
+    top: 12px;
     left: 50%;
-    transform: translate(-50%, -50%) scale(0.6);
+    transform: translateX(-50%) scale(0.6);
     z-index: 300;
     pointer-events: none;
     font-family: 'Segoe UI', system-ui, sans-serif;
     font-weight: 900;
-    font-size: 4em;
-    letter-spacing: 6px;
+    font-size: 2.4em;
+    letter-spacing: 4px;
     color: #fdef42;
     text-shadow:
       0 0 12px rgba(253,239,66,0.9),
       0 0 32px rgba(227,27,35,0.7),
       0 4px 12px rgba(0,0,0,0.8);
-    background: rgba(45,24,16,0.85);
+    background: rgba(45,24,16,0.92);
     border: 3px solid #e31b23;
-    border-radius: 16px;
-    padding: 18px 36px;
+    border-radius: 14px;
+    padding: 10px 28px;
     opacity: 0;
     transition: opacity 0.25s, transform 0.4s cubic-bezier(0.34,1.56,0.64,1);
     text-align: center;
     white-space: nowrap;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
   }
   #oopsBanner.show {
     opacity: 1;
-    transform: translate(-50%, -50%) scale(1) rotate(-3deg);
+    transform: translateX(-50%) scale(1) rotate(-2deg);
     animation: oops-shake 0.5s ease-in-out 0.25s;
   }
   #oopsBanner small {
-    display: block;
-    font-size: 0.4em;
+    font-size: 0.5em;
     letter-spacing: 3px;
     color: #f4ead5;
     font-weight: 700;
-    margin-top: 6px;
+    margin-left: 10px;
     text-shadow: 0 2px 4px rgba(0,0,0,0.8);
   }
   @keyframes oops-shake {
-    0%, 100% { transform: translate(-50%, -50%) scale(1) rotate(-3deg); }
-    25%      { transform: translate(-50%, -50%) scale(1.05) rotate(3deg); }
-    75%      { transform: translate(-50%, -50%) scale(1.05) rotate(-5deg); }
+    0%, 100% { transform: translateX(-50%) scale(1) rotate(-2deg); }
+    25%      { transform: translateX(-50%) scale(1.05) rotate(2deg); }
+    75%      { transform: translateX(-50%) scale(1.05) rotate(-4deg); }
   }
   @media (max-width: 560px) {
-    #oopsBanner { font-size: 2.4em; letter-spacing: 4px; padding: 14px 24px; }
+    #oopsBanner { font-size: 1.6em; letter-spacing: 3px; padding: 8px 18px; }
   }
   #coudouBanner {
     position: fixed;
@@ -586,6 +609,15 @@
         Le jeu de notre enfance, version sénégalaise.
       </div>
       <button id="btnLocal">Jouer ici (2 joueurs)</button>
+      <button id="btnAI" class="neutral">Jouer contre l'IA</button>
+      <div id="aiOptions" style="display:none; flex-direction:column; gap:8px;">
+        <div class="sep">Choisis la difficulté</div>
+        <div class="row">
+          <button id="btnAIEasy">Facile</button>
+          <button id="btnAIMedium" class="neutral">Moyen</button>
+          <button id="btnAIHard" class="danger">Difficile</button>
+        </div>
+      </div>
       <div class="sep">— ou jouer en ligne —</div>
       <button id="btnCreate">Créer une partie</button>
       <div class="row">
@@ -650,6 +682,12 @@ let socket = null;
 let online = false;
 let myColor = null;
 let applyingRemote = false;
+
+// --- AI ---
+let vsAI = false;
+let aiColor = null;       // 'O' by default (player plays Vert)
+let aiDifficulty = 4;     // 2 (facile) | 4 (moyen) | 6 (difficile)
+let aiThinking = false;
 
 function send(msg) {
   if (socket && socket.readyState === 1) socket.send(JSON.stringify(msg));
@@ -791,6 +829,160 @@ function maybePromote(r, c) {
   return false;
 }
 
+// --- AI engine (minimax alpha-bêta) ---
+function cloneBoard(b) {
+  return b.map(row => row.map(cell => cell ? {p: cell.p, dame: cell.dame} : null));
+}
+function aiCaptureMoves(b, r, c) {
+  const piece = b[r][c];
+  if (!piece) return [];
+  const out = [];
+  if (piece.dame) {
+    for (const [dr,dc] of ORTHO) {
+      let nr = r+dr, nc = c+dc;
+      while (inBounds(nr,nc) && !b[nr][nc]) { nr += dr; nc += dc; }
+      if (!inBounds(nr,nc)) continue;
+      if (b[nr][nc].p === piece.p) continue;
+      const capR = nr, capC = nc;
+      let lr = nr+dr, lc = nc+dc;
+      while (inBounds(lr,lc) && !b[lr][lc]) {
+        out.push({r:lr, c:lc, captured:{r:capR, c:capC}});
+        lr += dr; lc += dc;
+      }
+    }
+  } else {
+    const dirs = [[piece.p === 'X' ? 1 : -1, 0], [0, -1], [0, 1]];
+    for (const [dr,dc] of dirs) {
+      const mr = r+dr, mc = c+dc;
+      const lr = r+2*dr, lc = c+2*dc;
+      if (!inBounds(lr,lc)) continue;
+      const mid = b[mr][mc];
+      if (mid && mid.p !== piece.p && !b[lr][lc]) {
+        out.push({r:lr, c:lc, captured:{r:mr, c:mc}});
+      }
+    }
+  }
+  return out;
+}
+function aiSimpleMoves(b, r, c) {
+  const piece = b[r][c];
+  if (!piece) return [];
+  const out = [];
+  if (piece.dame) {
+    for (const [dr,dc] of ORTHO) {
+      let nr = r+dr, nc = c+dc;
+      while (inBounds(nr,nc) && !b[nr][nc]) { out.push({r:nr,c:nc}); nr += dr; nc += dc; }
+    }
+  } else {
+    const dirs = [[piece.p === 'X' ? 1 : -1, 0], [0, -1], [0, 1]];
+    for (const [dr,dc] of dirs) {
+      const nr = r+dr, nc = c+dc;
+      if (inBounds(nr,nc) && !b[nr][nc]) out.push({r:nr,c:nc});
+    }
+  }
+  return out;
+}
+function applyMoveOnBoard(b, fr, fc, to, captured) {
+  const nb = cloneBoard(b);
+  nb[to.r][to.c] = nb[fr][fc];
+  nb[fr][fc] = null;
+  if (captured) nb[captured.r][captured.c] = null;
+  const piece = nb[to.r][to.c];
+  if (piece && !piece.dame) {
+    if (piece.p === 'X' && to.r === SIZE-1) nb[to.r][to.c] = {p: piece.p, dame: true};
+    if (piece.p === 'O' && to.r === 0)      nb[to.r][to.c] = {p: piece.p, dame: true};
+  }
+  return nb;
+}
+function chainCapturesRec(b, r, c, seq, results) {
+  const next = aiCaptureMoves(b, r, c);
+  if (next.length === 0) {
+    results.push({sequence: seq.slice(), finalBoard: b});
+    return;
+  }
+  // AI always takes the full chain (avoids surplace risk and is usually optimal).
+  for (const m of next) {
+    const seq2 = seq.slice();
+    seq2.push({from:{r,c}, to:{r:m.r,c:m.c}, captured:m.captured});
+    const nb = applyMoveOnBoard(b, r, c, {r:m.r,c:m.c}, m.captured);
+    chainCapturesRec(nb, m.r, m.c, seq2, results);
+  }
+}
+function enumerateTurns(b, player) {
+  const results = [];
+  const captureStarts = [];
+  for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++) {
+    if (b[r][c] && b[r][c].p === player && aiCaptureMoves(b, r, c).length > 0) {
+      captureStarts.push({r,c});
+    }
+  }
+  if (captureStarts.length > 0) {
+    for (const start of captureStarts) {
+      for (const m of aiCaptureMoves(b, start.r, start.c)) {
+        const seq = [{from: start, to: {r:m.r,c:m.c}, captured: m.captured}];
+        const nb = applyMoveOnBoard(b, start.r, start.c, {r:m.r,c:m.c}, m.captured);
+        chainCapturesRec(nb, m.r, m.c, seq, results);
+      }
+    }
+  } else {
+    for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++) {
+      if (b[r][c] && b[r][c].p === player) {
+        for (const m of aiSimpleMoves(b, r, c)) {
+          const seq = [{from:{r,c}, to:{r:m.r,c:m.c}}];
+          const nb = applyMoveOnBoard(b, r, c, m, null);
+          results.push({sequence: seq, finalBoard: nb});
+        }
+      }
+    }
+  }
+  return results;
+}
+function evaluateBoard(b, aiP) {
+  const oppP = aiP === 'X' ? 'O' : 'X';
+  let myN=0, myD=0, opN=0, opD=0;
+  let advScore = 0, centerScore = 0;
+  for (let r=0; r<SIZE; r++) for (let c=0; c<SIZE; c++) {
+    const piece = b[r][c];
+    if (!piece) continue;
+    if (piece.p === aiP) { myN++; if (piece.dame) myD++; }
+    else                 { opN++; if (piece.dame) opD++; }
+    if (!piece.dame) {
+      const adv = piece.p === 'X' ? r : (SIZE-1-r);
+      advScore += (piece.p === aiP ? 1 : -1) * adv * 4;
+    }
+    if (r === 2 && c === 2) centerScore += (piece.p === aiP ? 12 : -12);
+  }
+  if (opN === 0) return 100000;
+  if (myN === 0) return -100000;
+  return (myN - opN) * 100 + (myD - opD) * 220 + advScore + centerScore;
+}
+function minimax(b, player, depth, alpha, beta, aiP) {
+  if (depth === 0) return {score: evaluateBoard(b, aiP)};
+  const turns = enumerateTurns(b, player);
+  if (turns.length === 0) return {score: player === aiP ? -100000 : 100000};
+  const oppP = player === 'X' ? 'O' : 'X';
+  let bestTurn = null;
+  if (player === aiP) {
+    let bestScore = -Infinity;
+    for (const t of turns) {
+      const r = minimax(t.finalBoard, oppP, depth-1, alpha, beta, aiP);
+      if (r.score > bestScore) { bestScore = r.score; bestTurn = t; }
+      alpha = Math.max(alpha, bestScore);
+      if (beta <= alpha) break;
+    }
+    return {score: bestScore, turn: bestTurn};
+  } else {
+    let bestScore = Infinity;
+    for (const t of turns) {
+      const r = minimax(t.finalBoard, oppP, depth-1, alpha, beta, aiP);
+      if (r.score < bestScore) { bestScore = r.score; bestTurn = t; }
+      beta = Math.min(beta, bestScore);
+      if (beta <= alpha) break;
+    }
+    return {score: bestScore, turn: bestTurn};
+  }
+}
+
 const boardEl = document.getElementById('board');
 const statusEl = document.getElementById('status');
 const surplaceBtn = document.getElementById('surplaceBtn');
@@ -825,6 +1017,7 @@ function renderTurnTimer() {
 function startTurnTimer() {
   clearTurnTimer();
   if (gameOver) return;
+  if (vsAI && turn === aiColor) return;
   turnDeadline = Date.now() + TURN_DURATION_MS;
   renderTurnTimer();
   turnTimer = setInterval(() => {
@@ -839,6 +1032,56 @@ function startTurnTimer() {
     }
   }, 250);
 }
+function executeAISequence(sequence, idx) {
+  if (idx >= sequence.length) return;
+  const step = sequence[idx];
+  selected = {r: step.from.r, c: step.from.c};
+  if (step.captured) {
+    const moveObj = {r: step.to.r, c: step.to.c, captured: step.captured};
+    doCapture(step.from.r, step.from.c, moveObj);
+    setTimeout(() => {
+      if (idx + 1 < sequence.length) {
+        clearCoudouTimer();
+        executeAISequence(sequence, idx + 1);
+      } else {
+        clearCoudouTimer();
+        if (mustContinueFrom) endTurn();
+      }
+    }, 700);
+  } else {
+    doSimpleMove(step.from.r, step.from.c, step.to);
+  }
+}
+function aiTurnIfNeeded() {
+  if (!vsAI || gameOver || aiThinking) return;
+  if (turn !== aiColor) return;
+  if (mustContinueFrom) return;
+  // Surplace human if they missed a capture
+  if (surplaceTargets.size > 0) {
+    aiThinking = true;
+    setStatus(`L'IA t'a vu rater une capture…`);
+    setTimeout(() => {
+      aiThinking = false;
+      if (!vsAI || gameOver || turn !== aiColor) return;
+      const k = surplaceTargets.values().next().value;
+      const [r, c] = k.split(',').map(Number);
+      enterSurplace();
+      handleSurplaceClick(r, c);
+    }, 700);
+    return;
+  }
+  aiThinking = true;
+  setStatus(`L'IA réfléchit…`);
+  // Defer so the UI can paint "réfléchit" before the (potentially long) compute
+  setTimeout(() => {
+    const result = minimax(board, aiColor, aiDifficulty, -Infinity, Infinity, aiColor);
+    aiThinking = false;
+    if (!vsAI || gameOver || turn !== aiColor) return;
+    if (!result.turn) { endTurn(); return; }
+    executeAISequence(result.turn.sequence, 0);
+  }, 80);
+}
+
 function passTurn() {
   if (gameOver) return;
   clearTurnTimer();
@@ -864,6 +1107,7 @@ function passTurn() {
   setStatus(`${passer} : temps écoulé. Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
   render();
   startTurnTimer();
+  aiTurnIfNeeded();
 }
 
 function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
@@ -971,7 +1215,7 @@ function render() {
   panelX.classList.toggle('active-X', turn === 'X' && !gameOver);
   panelO.classList.toggle('active-O', turn === 'O' && !gameOver);
 
-  surplaceBtn.disabled = mustContinueFrom !== null || gameOver || (online && !isMyTurn());
+  surplaceBtn.disabled = mustContinueFrom !== null || gameOver || (online && !isMyTurn()) || (vsAI && turn === aiColor);
 }
 
 function addTrophy(killerPlayer) {
@@ -997,11 +1241,21 @@ function animateCapture(r, c, killerPlayer, after) {
   }
 }
 
-function setStatus(msg) { statusEl.textContent = msg; }
+function setStatus(msg) {
+  const safe = String(msg)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  statusEl.innerHTML = safe
+    .replace(/\bVert\b/g, '<span class="name-X">Vert</span>')
+    .replace(/\bRouge\b/g, '<span class="name-O">Rouge</span>');
+}
 
 function onCellClick(r, c) {
   if (gameOver) return;
   if (online && !applyingRemote && !isMyTurn()) return;
+  if (vsAI && turn === aiColor && !aiThinking) return;
+  if (vsAI && aiThinking) return;
   if (!applyingRemote) broadcast({type:'cellClick', r, c});
   if (surplaceMode) { handleSurplaceClick(r, c); return; }
   const piece = board[r][c];
@@ -1159,6 +1413,7 @@ function endTurn() {
   setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
   render();
   startTurnTimer();
+  aiTurnIfNeeded();
 }
 
 function enterSurplace() {
@@ -1226,6 +1481,7 @@ function handleSurplaceClick(r, c) {
         setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
       }
       render();
+      aiTurnIfNeeded();
     });
   };
   demonstrateMove(r, c, originR, originC, demo, finish);
@@ -1250,6 +1506,7 @@ function doReset() {
   setStatus('Au tour de Vert');
   render();
   startTurnTimer();
+  aiTurnIfNeeded();
 }
 function ask({title, message, okText='OK', cancelText='Annuler', danger=false}) {
   return new Promise(resolve => {
@@ -1274,6 +1531,18 @@ function ask({title, message, okText='OK', cancelText='Annuler', danger=false}) 
 
 document.getElementById('drawBtn').addEventListener('click', async () => {
   if (gameOver) return;
+  if (vsAI) {
+    // Quick AI evaluation: accept if AI is losing material, else refuse.
+    const score = evaluateBoard(board, aiColor);
+    if (score < -150) {
+      await ask({title:'Match nul', message:'L\'IA accepte le match nul.', okText:'OK', cancelText:'OK'});
+      doDraw();
+    } else {
+      await ask({title:'Match nul', message:'L\'IA refuse le match nul.', okText:'OK', cancelText:'OK'});
+      setStatus('L\'IA a refusé le match nul');
+    }
+    return;
+  }
   if (online) {
     const next = (drawRequests[myColor] || 0) + 1;
     const remaining = MAX_DRAW_REQUESTS - next;
@@ -1388,9 +1657,28 @@ function connectSocket() {
 
 document.getElementById('btnLocal').onclick = () => {
   online = false;
+  vsAI = false;
   lobbyEl.style.display = 'none';
   startTurnTimer();
 };
+document.getElementById('btnAI').onclick = () => {
+  const opts = document.getElementById('aiOptions');
+  opts.style.display = opts.style.display === 'none' ? 'flex' : 'none';
+};
+function startVsAI(depth) {
+  online = false;
+  vsAI = true;
+  aiColor = 'O';        // human plays Vert (X), AI plays Rouge (O)
+  aiDifficulty = depth;
+  myColor = 'X';
+  lobbyEl.style.display = 'none';
+  myBadge.innerHTML = ` <span class="badge-color X">Tu es Vert (vs IA ${depth===2?'Facile':depth===4?'Moyen':'Difficile'})</span>`;
+  startTurnTimer();
+  aiTurnIfNeeded();
+}
+document.getElementById('btnAIEasy').onclick   = () => startVsAI(2);
+document.getElementById('btnAIMedium').onclick = () => startVsAI(4);
+document.getElementById('btnAIHard').onclick   = () => startVsAI(6);
 document.getElementById('btnCreate').onclick = () => {
   connectSocket();
   socket.addEventListener('open', () => send({type:'create'}), { once: true });
