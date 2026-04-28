@@ -5,7 +5,8 @@
 <title>12 Pions</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
 <style>
-  * { box-sizing: border-box; }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  button, .cell, .piece { -webkit-touch-callout: none; user-select: none; }
   :root { --cell: 90px; --piece: 64px; --piece-font: 1.6em; }
   body {
     font-family: 'Segoe UI', system-ui, sans-serif;
@@ -418,7 +419,27 @@
     color: #2d1810;
     text-shadow: none;
   }
-  #lobby {
+  button.side-X {
+    background: linear-gradient(145deg, #4ee08d, #00853f);
+    flex: 1;
+  }
+  button.side-O {
+    background: linear-gradient(145deg, #ff7a7a, #c41a22);
+    flex: 1;
+  }
+  button.side-X.chosen, button.side-O.chosen, button.chosen {
+    outline: 3px solid #fdef42;
+    outline-offset: 2px;
+  }
+  button.expert {
+    background: linear-gradient(90deg, #00853f 0%, #00853f 33%, #fdef42 50%, #e31b23 67%, #e31b23 100%);
+    color: #1a1a1a;
+    font-weight: 800;
+    border: 1px solid rgba(0,0,0,0.45);
+    text-shadow: 0 1px 2px rgba(255,255,255,0.4);
+    box-shadow: 0 3px 6px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.3);
+  }
+  #lobby, #aiModal {
     position: fixed;
     inset: 0;
     background: rgba(10,12,20,0.92);
@@ -468,7 +489,7 @@
   }
   .lobby-card .row { display: flex; gap: 8px; width: 100%; }
   .lobby-card .row input { min-width: 0; }
-  .lobby-card .row button { flex-shrink: 0; padding: 10px 18px; }
+  .lobby-card .row button { flex: 1 1 0; min-width: 0; padding: 10px 8px; }
   .lobby-card input {
     flex: 1;
     padding: 10px;
@@ -609,15 +630,7 @@
         Le jeu de notre enfance, version sénégalaise.
       </div>
       <button id="btnLocal">Jouer ici (2 joueurs)</button>
-      <button id="btnAI" class="neutral">Jouer contre l'IA</button>
-      <div id="aiOptions" style="display:none; flex-direction:column; gap:8px;">
-        <div class="sep">Choisis la difficulté</div>
-        <div class="row">
-          <button id="btnAIEasy">Facile</button>
-          <button id="btnAIMedium" class="neutral">Moyen</button>
-          <button id="btnAIHard" class="danger">Difficile</button>
-        </div>
-      </div>
+      <button id="btnAI" class="neutral">Jouer contre Mariama</button>
       <div class="sep">— ou jouer en ligne —</div>
       <button id="btnCreate">Créer une partie</button>
       <div class="row">
@@ -625,6 +638,31 @@
         <button id="btnJoin" class="neutral">Rejoindre</button>
       </div>
       <div id="lobbyStatus"></div>
+    </div>
+  </div>
+
+  <div id="aiModal" style="display:none;">
+    <div class="lobby-card">
+      <h2>Contre Mariama</h2>
+      <div class="sep">Couleur de tes pions</div>
+      <div class="row">
+        <button id="btnSideX" class="side-X">Vert</button>
+        <button id="btnSideO" class="side-O">Rouge</button>
+      </div>
+      <div class="sep">Tes pions sur le plateau</div>
+      <div class="row">
+        <button id="btnPosTop" class="neutral">En haut</button>
+        <button id="btnPosBot" class="neutral">En bas</button>
+      </div>
+      <div class="sep">Difficulté</div>
+      <div class="row">
+        <button id="btnAIEasy">Facile</button>
+        <button id="btnAIMedium" class="neutral">Moyen</button>
+        <button id="btnAIHard" class="danger">Difficile</button>
+        <button id="btnAILegend" class="expert">Expert</button>
+      </div>
+      <div class="sep"></div>
+      <button id="btnAIBack" class="neutral">← Retour</button>
     </div>
   </div>
 
@@ -956,10 +994,20 @@ function evaluateBoard(b, aiP) {
   if (myN === 0) return -100000;
   return (myN - opN) * 100 + (myD - opD) * 220 + advScore + centerScore;
 }
+let aiDeadline = 0;
 function minimax(b, player, depth, alpha, beta, aiP) {
+  if (aiDeadline && performance.now() > aiDeadline) throw 'timeout';
   if (depth === 0) return {score: evaluateBoard(b, aiP)};
   const turns = enumerateTurns(b, player);
   if (turns.length === 0) return {score: player === aiP ? -100000 : 100000};
+  // Move ordering: longest capture sequences first → tighter alpha-beta pruning
+  if (turns.length > 1) {
+    turns.sort((a, c) => {
+      const ac = a.sequence.filter(s => s.captured).length;
+      const cc = c.sequence.filter(s => s.captured).length;
+      return cc - ac;
+    });
+  }
   const oppP = player === 'X' ? 'O' : 'X';
   let bestTurn = null;
   if (player === aiP) {
@@ -1059,7 +1107,7 @@ function aiTurnIfNeeded() {
   // Surplace human if they missed a capture
   if (surplaceTargets.size > 0) {
     aiThinking = true;
-    setStatus(`L'IA t'a vu rater une capture…`);
+    setStatus(`Mariama t'a vu rater une capture…`);
     setTimeout(() => {
       aiThinking = false;
       if (!vsAI || gameOver || turn !== aiColor) return;
@@ -1071,10 +1119,29 @@ function aiTurnIfNeeded() {
     return;
   }
   aiThinking = true;
-  setStatus(`L'IA réfléchit…`);
+  setStatus(`Mariama réfléchit…`);
   // Defer so the UI can paint "réfléchit" before the (potentially long) compute
   setTimeout(() => {
-    const result = minimax(board, aiColor, aiDifficulty, -Infinity, Infinity, aiColor);
+    let result;
+    if (aiDifficulty >= 99) {
+      // Légende : iterative deepening avec budget de temps (≈3.5 s)
+      // pour ne jamais figer la page, en gardant le meilleur coup trouvé.
+      const total = countPieces('X') + countPieces('O');
+      const maxDepth = total <= 6 ? 24 : total <= 10 ? 16 : total <= 14 ? 12 : 10;
+      aiDeadline = performance.now() + 3500;
+      let best = null;
+      for (let d = 2; d <= maxDepth; d++) {
+        try {
+          const r = minimax(board, aiColor, d, -Infinity, Infinity, aiColor);
+          if (r && r.turn) best = r;
+        } catch (e) { break; }
+        if (performance.now() > aiDeadline) break;
+      }
+      aiDeadline = 0;
+      result = best || minimax(board, aiColor, 2, -Infinity, Infinity, aiColor);
+    } else {
+      result = minimax(board, aiColor, aiDifficulty, -Infinity, Infinity, aiColor);
+    }
     aiThinking = false;
     if (!vsAI || gameOver || turn !== aiColor) return;
     if (!result.turn) { endTurn(); return; }
@@ -1174,8 +1241,11 @@ function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
 
 function render() {
   boardEl.innerHTML = '';
-  for (let r = 0; r < SIZE; r++) {
-    for (let c = 0; c < SIZE; c++) {
+  const flipped = boardEl.classList.contains('flipped');
+  for (let i = 0; i < SIZE; i++) {
+    for (let j = 0; j < SIZE; j++) {
+      const r = flipped ? SIZE - 1 - i : i;
+      const c = flipped ? SIZE - 1 - j : j;
       const cell = document.createElement('div');
       let zone = '';
       if (r === 2 && c === 2) zone = ' center';
@@ -1658,27 +1728,74 @@ function connectSocket() {
 document.getElementById('btnLocal').onclick = () => {
   online = false;
   vsAI = false;
+  myColor = null;
+  myBadge.innerHTML = ` <span class="badge-color X">2 joueurs locaux</span>`;
   lobbyEl.style.display = 'none';
+  // Pas de flip en local : plateau standard (Vert haut, Rouge bas)
+  if (boardEl) boardEl.classList.remove('flipped');
+  render();
   startTurnTimer();
 };
+const aiModalEl = document.getElementById('aiModal');
 document.getElementById('btnAI').onclick = () => {
-  const opts = document.getElementById('aiOptions');
-  opts.style.display = opts.style.display === 'none' ? 'flex' : 'none';
+  lobbyEl.style.display = 'none';
+  aiModalEl.style.display = 'flex';
 };
+document.getElementById('btnAIBack').onclick = () => {
+  aiModalEl.style.display = 'none';
+  lobbyEl.style.display = 'flex';
+};
+let chosenSide = 'X'; // default: human plays Vert
 function startVsAI(depth) {
   online = false;
   vsAI = true;
-  aiColor = 'O';        // human plays Vert (X), AI plays Rouge (O)
+  myColor = chosenSide;
+  aiColor = chosenSide === 'X' ? 'O' : 'X';
   aiDifficulty = depth;
-  myColor = 'X';
   lobbyEl.style.display = 'none';
-  myBadge.innerHTML = ` <span class="badge-color X">Tu es Vert (vs IA ${depth===2?'Facile':depth===4?'Moyen':'Difficile'})</span>`;
+  aiModalEl.style.display = 'none';
+  const label = depth===2?'Facile':depth===4?'Moyen':depth===6?'Difficile':'Expert';
+  const sideName = chosenSide === 'X' ? 'Vert' : 'Rouge';
+  myBadge.innerHTML = ` <span class="badge-color ${chosenSide}">Tu es ${sideName} (vs Mariama — ${label})</span>`;
+  updateBoardOrientation();
+  render();
   startTurnTimer();
   aiTurnIfNeeded();
 }
+function pickSide(side) {
+  chosenSide = side;
+  document.getElementById('btnSideX').classList.toggle('chosen', side === 'X');
+  document.getElementById('btnSideO').classList.toggle('chosen', side === 'O');
+}
+let chosenPosition = 'bas'; // default: tes pions en bas de l'écran
+function pickPosition(pos) {
+  chosenPosition = pos;
+  document.getElementById('btnPosTop').classList.toggle('chosen', pos === 'haut');
+  document.getElementById('btnPosBot').classList.toggle('chosen', pos === 'bas');
+  updateBoardOrientation();
+  if (typeof render === 'function') render();
+}
+function shouldFlipBoard() {
+  // Plateau par défaut : X (Vert) en haut (lignes 0-1), O (Rouge) en bas.
+  // On flippe si la position voulue ne correspond pas au défaut.
+  const myDefaultIsTop = chosenSide === 'X';
+  const wantTop = chosenPosition === 'haut';
+  return myDefaultIsTop !== wantTop;
+}
+function updateBoardOrientation() {
+  if (!boardEl) return;
+  boardEl.classList.toggle('flipped', shouldFlipBoard());
+}
+document.getElementById('btnSideX').onclick = () => { pickSide('X'); updateBoardOrientation(); if (typeof render === 'function') render(); };
+document.getElementById('btnSideO').onclick = () => { pickSide('O'); updateBoardOrientation(); if (typeof render === 'function') render(); };
+document.getElementById('btnPosTop').onclick = () => pickPosition('haut');
+document.getElementById('btnPosBot').onclick = () => pickPosition('bas');
+pickSide('X');
+pickPosition('bas');
 document.getElementById('btnAIEasy').onclick   = () => startVsAI(2);
 document.getElementById('btnAIMedium').onclick = () => startVsAI(4);
 document.getElementById('btnAIHard').onclick   = () => startVsAI(6);
+document.getElementById('btnAILegend').onclick = () => startVsAI(99);
 document.getElementById('btnCreate').onclick = () => {
   connectSocket();
   socket.addEventListener('open', () => send({type:'create'}), { once: true });
