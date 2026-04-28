@@ -2,8 +2,20 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<title>12 Pions</title>
+<title>12 Pions — Le jeu de dames sénégalais</title>
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<meta name="description" content="12 Pions — la version sénégalaise du jeu de dames sur plateau 5×5. Captures en chaîne, surplace, coudou et défi contre Mariama, l'IA imbattable. Jouable solo, à deux, ou en ligne.">
+<meta name="theme-color" content="#00853f">
+<meta property="og:type" content="website">
+<meta property="og:title" content="12 Pions — Le jeu de dames sénégalais">
+<meta property="og:description" content="Captures en chaîne, surplace, coudou… le jeu traditionnel du Sénégal, jouable solo contre Mariama l'IA, à deux sur le même écran, ou en ligne avec un ami.">
+<meta property="og:image" content="logo.png">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="12 Pions — Le jeu de dames sénégalais">
+<meta name="twitter:description" content="Captures en chaîne, surplace, coudou… le jeu traditionnel du Sénégal, jouable solo contre Mariama l'IA, à deux sur le même écran, ou en ligne avec un ami.">
+<meta name="twitter:image" content="logo.png">
+<link rel="icon" type="image/x-icon" href="favicon.ico">
+<link rel="apple-touch-icon" href="logo.png">
 <style>
   * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
   button, .cell, .piece { -webkit-touch-callout: none; user-select: none; }
@@ -397,6 +409,8 @@
     flex-wrap: wrap;
     justify-content: center;
   }
+  #muteBtn { display: inline-flex; align-items: center; justify-content: center; padding: 10px 14px; }
+  #muteBtn svg { display: block; }
   button {
     padding: 10px 22px;
     font-size: 0.95em;
@@ -627,7 +641,7 @@
       <h2>12 PIONS <span style="color:#00853f">★</span></h2>
       <div class="welcome">
         <em>Dalal ak diam</em> — bienvenue !<br>
-        Le jeu de notre enfance, version sénégalaise.
+        Le jeu de dames en 12 pions, dans les règles adaptées au Sénégal.
       </div>
       <button id="btnLocal">Jouer ici (2 joueurs)</button>
       <button id="btnAI" class="neutral">Jouer contre Mariama</button>
@@ -692,6 +706,7 @@
     <button id="surplaceBtn" class="danger">Surplace</button>
     <button id="drawBtn" class="neutral">Match nul</button>
     <button id="resetBtn" class="neutral">Nouvelle partie</button>
+    <button id="muteBtn" class="neutral" title="Activer/couper les sons" aria-label="Son"></button>
   </div>
 
 <script>
@@ -1044,6 +1059,7 @@ function showCoudouBanner(label) {
   b.classList.remove('show');
   void b.offsetHeight;
   b.classList.add('show');
+  playSound('coudou');
 }
 
 const TURN_DURATION_MS = 30000;
@@ -1166,6 +1182,7 @@ function passTurn() {
   if (allMovesForPlayer(turn).length === 0) {
     gameOver = true;
     setStatus(`${turn === 'X' ? 'Vert' : 'Rouge'} bloqué — victoire de ${opponent(turn) === 'X' ? 'Vert' : 'Rouge'} !`);
+    endGameAnimation(opponent(turn));
     render();
     return;
   }
@@ -1238,6 +1255,228 @@ function demonstrateMove(curR, curC, originR, originC, demoMove, then) {
     then();
   };
 }
+
+// --- Confetti / defeat animation ---
+function launchConfetti(opts) {
+  const COLORS = (opts && opts.colors) || ['#00853f', '#fdef42', '#e31b23', '#ffffff'];
+  const speedMul = (opts && opts.speed) || 1;
+  const N = (opts && opts.count) || 180;
+  let canvas = document.getElementById('confettiCanvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'confettiCanvas';
+    canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
+    document.body.appendChild(canvas);
+  }
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const particles = [];
+  for (let i = 0; i < N; i++) {
+    particles.push({
+      x: Math.random() * canvas.width,
+      y: -20 - Math.random() * canvas.height * 0.5,
+      vx: (Math.random() - 0.5) * 4 * speedMul,
+      vy: (2 + Math.random() * 4) * speedMul,
+      size: 6 + Math.random() * 6,
+      color: COLORS[Math.floor(Math.random() * COLORS.length)],
+      rot: Math.random() * Math.PI * 2,
+      vr: (Math.random() - 0.5) * 0.3,
+      shape: Math.random() < 0.5 ? 'rect' : 'circle',
+    });
+  }
+  const start = performance.now();
+  const DURATION = 5000;
+  function frame(t) {
+    const elapsed = t - start;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of particles) {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.05; // gravity
+      p.rot += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rot);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = elapsed > DURATION - 1200 ? Math.max(0, (DURATION - elapsed) / 1200) : 1;
+      if (p.shape === 'rect') {
+        ctx.fillRect(-p.size/2, -p.size/4, p.size, p.size/2);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size/2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    }
+    if (elapsed < DURATION) {
+      requestAnimationFrame(frame);
+    } else {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
+// Pluie lente verticale pour la défaite (pas de confettis joyeux)
+function launchRain() {
+  let canvas = document.getElementById('confettiCanvas');
+  if (!canvas) {
+    canvas = document.createElement('canvas');
+    canvas.id = 'confettiCanvas';
+    canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
+    document.body.appendChild(canvas);
+  }
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const drops = [];
+  const N = 120;
+  for (let i = 0; i < N; i++) {
+    drops.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height,
+      len: 12 + Math.random() * 18,
+      speed: 3 + Math.random() * 3,
+      alpha: 0.25 + Math.random() * 0.4,
+    });
+  }
+  const start = performance.now();
+  const DURATION = 4500;
+  function frame(t) {
+    const elapsed = t - start;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.strokeStyle = '#7a8090';
+    ctx.lineWidth = 1.4;
+    const fadeFactor = elapsed > DURATION - 1000 ? Math.max(0, (DURATION - elapsed) / 1000) : 1;
+    for (const d of drops) {
+      d.y += d.speed;
+      if (d.y > canvas.height + 20) { d.y = -20; d.x = Math.random() * canvas.width; }
+      ctx.globalAlpha = d.alpha * fadeFactor;
+      ctx.beginPath();
+      ctx.moveTo(d.x, d.y);
+      ctx.lineTo(d.x + 1, d.y + d.len);
+      ctx.stroke();
+    }
+    if (elapsed < DURATION) requestAnimationFrame(frame);
+    else ctx.clearRect(0, 0, canvas.width, canvas.height);
+  }
+  requestAnimationFrame(frame);
+}
+
+// Affiche un overlay "DÉFAITE" mélancolique : assombrissement progressif,
+// texte qui descend lentement, secousse douce du plateau.
+function showDefeatOverlay() {
+  // 1. Voile sombre qui s'installe doucement sur l'écran
+  let dim = document.getElementById('defeatDim');
+  if (!dim) {
+    dim = document.createElement('div');
+    dim.id = 'defeatDim';
+    dim.style.cssText = 'position:fixed;inset:0;background:radial-gradient(ellipse at center,'
+      + 'rgba(20,10,15,0.55) 0%,rgba(5,2,8,0.85) 100%);z-index:9997;pointer-events:none;'
+      + 'opacity:0;transition:opacity 1.6s ease-out;';
+    document.body.appendChild(dim);
+  }
+  // 2. Texte "Défaite…" en gris triste, descend lentement, fade in/out long
+  let el = document.getElementById('defeatOverlay');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'defeatOverlay';
+    el.style.cssText = 'position:fixed;top:38%;left:50%;'
+      + 'font-size:3em;letter-spacing:8px;font-weight:300;color:#9aa0b0;'
+      + 'text-shadow:0 4px 18px rgba(0,0,0,0.95),0 0 30px rgba(120,80,90,0.4);'
+      + 'z-index:9998;pointer-events:none;opacity:0;'
+      + 'transition:opacity 1.4s ease-in-out,transform 3.5s cubic-bezier(.2,.6,.3,1);'
+      + 'font-family:inherit;font-style:italic;';
+    el.innerHTML = 'défaite<span style="display:block;font-size:0.4em;letter-spacing:4px;'
+      + 'margin-top:8px;color:#6a7080;font-style:normal;">la prochaine sera la bonne</span>';
+    document.body.appendChild(el);
+  }
+  el.style.opacity = '0';
+  el.style.transform = 'translate(-50%,-30px)';
+  dim.style.opacity = '0';
+  requestAnimationFrame(() => {
+    dim.style.opacity = '1';
+    el.style.opacity = '1';
+    el.style.transform = 'translate(-50%,40px)';
+  });
+  // Légère secousse triste du plateau (pas un gros shake — juste un soupir)
+  if (boardEl) {
+    boardEl.animate(
+      [
+        {transform: 'translateX(0)'},
+        {transform: 'translateX(-4px)'},
+        {transform: 'translateX(3px)'},
+        {transform: 'translateX(-2px)'},
+        {transform: 'translateX(0)'},
+      ],
+      {duration: 800, easing: 'ease-in-out'}
+    );
+  }
+  setTimeout(() => {
+    el.style.opacity = '0';
+    dim.style.opacity = '0';
+  }, 4200);
+}
+
+// Décide animation/son selon le contexte du joueur.
+// winner: 'X', 'O', ou null (match nul)
+function endGameAnimation(winner) {
+  if (winner === null) return; // match nul : pas d'animation
+  // Détermine ce que voit le joueur local.
+  // - Local 2P : on montre les confettis pour le gagnant (les deux regardent l'écran).
+  // - vs Mariama : si humain gagne → confettis ; si Mariama gagne → défaite.
+  // - En ligne : myColor === winner → confettis ; sinon → défaite.
+  let viewerWon;
+  if (vsAI)        viewerWon = (winner === myColor);
+  else if (online) viewerWon = (winner === myColor);
+  else             viewerWon = true; // local 2P : on fête la victoire du gagnant
+  if (viewerWon) {
+    playSound('win');
+    launchConfetti();
+  } else {
+    playSound('fail');
+    showDefeatOverlay();
+    launchRain();
+  }
+}
+
+// --- Sound system ---
+const SOUND_FILES = {
+  move:    'sounds/move.mp3',
+  capture: 'sounds/coinpickup.mp3',
+  dame:    'sounds/levelup.mp3',
+  oops:    'sounds/wrong.mp3',
+  coudou:  'sounds/crowd.mp3',
+  win:     'sounds/fanfare.mp3',
+  fail:    'sounds/fail.mp3',
+};
+const sounds = {};
+for (const [k, src] of Object.entries(SOUND_FILES)) {
+  const a = new Audio(src);
+  a.preload = 'auto';
+  a.volume = (k === 'coudou' || k === 'win' || k === 'fail') ? 0.7 : 0.55;
+  sounds[k] = a;
+}
+let soundMuted = localStorage.getItem('12pions.muted') === '1';
+function playSound(name) {
+  if (soundMuted) return;
+  const a = sounds[name];
+  if (!a) return;
+  try { a.currentTime = 0; a.play().catch(() => {}); } catch (e) {}
+}
+const muteBtn = document.getElementById('muteBtn');
+const ICON_SOUND_ON = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">'
+  + '<path d="M3 9v6h4l5 4V5L7 9H3zm13.5 3a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.23v2.06a7 7 0 0 1 0 13.42v2.06a9 9 0 0 0 0-17.54z"/></svg>';
+const ICON_SOUND_OFF = '<svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">'
+  + '<path d="M3 9v6h4l5 4V5L7 9H3zm13.59 3L20 8.41 18.59 7 15 10.59 11.41 7 10 8.41 13.59 12 10 15.59 11.41 17 15 13.41 18.59 17 20 15.59 16.41 12z"/></svg>';
+function refreshMuteBtn() { muteBtn.innerHTML = soundMuted ? ICON_SOUND_OFF : ICON_SOUND_ON; }
+muteBtn.onclick = () => {
+  soundMuted = !soundMuted;
+  localStorage.setItem('12pions.muted', soundMuted ? '1' : '0');
+  refreshMuteBtn();
+};
+refreshMuteBtn();
 
 function render() {
   boardEl.innerHTML = '';
@@ -1359,7 +1598,8 @@ function doSimpleMove(fr, fc, to) {
   board[to.r][to.c] = board[fr][fc];
   board[fr][fc] = null;
   pendingAppear.add(key(to.r, to.c));
-  if (maybePromote(to.r, to.c)) pendingPromote.add(key(to.r, to.c));
+  playSound('move');
+  if (maybePromote(to.r, to.c)) { pendingPromote.add(key(to.r, to.c)); playSound('dame'); }
   lastMoveTo = {r: to.r, c: to.c};
   selected = null;
   endTurn();
@@ -1371,12 +1611,13 @@ function doCapture(fr, fc, move) {
   turnDidCapture = true;
   clearCoudouTimer();
   const killer = turn;
+  playSound('capture');
   animateCapture(move.captured.r, move.captured.c, killer, () => {
     board[move.r][move.c] = board[fr][fc];
     board[fr][fc] = null;
     board[move.captured.r][move.captured.c] = null;
     pendingAppear.add(key(move.r, move.c));
-    if (maybePromote(move.r, move.c)) pendingPromote.add(key(move.r, move.c));
+    if (maybePromote(move.r, move.c)) { pendingPromote.add(key(move.r, move.c)); playSound('dame'); }
     lastMoveTo = {r: move.r, c: move.c};
     mustContinueFrom = {r: move.r, c: move.c};
     selected = mustContinueFrom;
@@ -1468,6 +1709,7 @@ function endTurn() {
   if (countPieces(opponent(turn)) === 0) {
     gameOver = true;
     setStatus(`Victoire de ${turn === 'X' ? 'Vert' : 'Rouge'} !`);
+    endGameAnimation(turn);
     render();
     return;
   }
@@ -1475,6 +1717,7 @@ function endTurn() {
   if (allMovesForPlayer(turn).length === 0) {
     gameOver = true;
     setStatus(`${turn === 'X' ? 'Vert' : 'Rouge'} bloqué — victoire de ${opponent(turn) === 'X' ? 'Vert' : 'Rouge'} !`);
+    endGameAnimation(opponent(turn));
     render();
     return;
   }
@@ -1533,6 +1776,7 @@ function handleSurplaceClick(r, c) {
   }
   const banner = document.getElementById('oopsBanner');
   if (banner) banner.classList.add('show');
+  playSound('oops');
   setStatus(`Coup raté de ${fautif} ${demo ? '— voilà ce qu\'il devait jouer' : ''}`);
   const finish = () => {
     if (banner) banner.classList.remove('show');
@@ -1547,6 +1791,7 @@ function handleSurplaceClick(r, c) {
         gameOver = true;
         clearTurnTimer();
         setStatus(`Victoire de ${turn === 'X' ? 'Vert' : 'Rouge'} !`);
+        endGameAnimation(turn);
       } else {
         setStatus(`Au tour de ${turn === 'X' ? 'Vert' : 'Rouge'}`);
       }
@@ -1569,6 +1814,7 @@ function doDrawForfeit(loser) {
   const loserName = loser === 'X' ? 'Vert' : 'Rouge';
   const winnerName = loser === 'X' ? 'Rouge' : 'Vert';
   setStatus(`${loserName} a abusé du match nul (${MAX_DRAW_REQUESTS} demandes) — victoire de ${winnerName} !`);
+  endGameAnimation(loser === 'X' ? 'O' : 'X');
   render();
 }
 function doReset() {
